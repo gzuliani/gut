@@ -22,7 +22,8 @@ public:
 };
 
 std::ostream& operator<<(std::ostream& os, const Object& co) {
-    return os << "Object#" << co.GetId(); }
+    return os << "Object#" << co.GetId();
+}
 
 class NonCopiableObject {
     int id_;
@@ -62,32 +63,19 @@ int fnThatThrowsAnInt() {
 
 class TestReport {
     std::string& failure_;
-    std::string& eval_;
     std::string& info_;
-    std::string& warn_;
     // disabled!
     TestReport& operator=(const TestReport&);
 public:
-    TestReport(
-        std::string& failure,
-        std::string& eval,
-        std::string& info,
-        std::string& warn)
-    : failure_(failure)
-    , eval_(eval)
-    , info_(info)
-    , warn_(warn) {
-    }
-    void onStart() { }
-    void onEnd() { }
-    void onStartTest(const std::string& /*name*/) { }
-    void onEndTest() { }
-    void onFailure(const gut::Notice& failure) { failure_ = failure.what(); }
-    virtual void onEval(const gut::Notice& eval) { eval_ = eval.what(); }
-    virtual void onInfo(const gut::Notice& info) { info_ = info.what(); }
-    virtual void onWarn(const gut::Notice& warn) { warn_ = warn.what(); }
-    void onQuit(const std::string& /*reason*/) { }
-    int failedTestCount() { return -1; }
+    TestReport(std::string& failure, std::string& info)
+    : failure_(failure), info_(info) { }
+    void start() { }
+    void end(int /*tests*/, int /*failedTests*/, int /*failures*/, double /*duration*/) { }
+    void startTest(const std::string& /*name*/) { }
+    void endTest(bool /*failed*/, double /*duration*/) { }
+    void failure(const char* /*file*/, int /*line*/, int /*level*/, const std::string& what) { failure_ = what; }
+    virtual void info(const char* /*file*/, int /*line*/, int /*level*/, const std::string& what) { info_ = what; }
+    void quit(const std::string& /*reason*/) { }
 };
 
 class ConvertibleToBool {
@@ -118,11 +106,9 @@ public:
 
 int main() {
 
-    std::string lastFailure;
-    std::string lastEval;
     std::string lastInfo;
-    std::string lastWarn;
-    gut::theReport::set(TestReport(lastFailure, lastEval, lastInfo, lastWarn));
+    std::string lastFailure;
+    gut::theListener = gut::Listener(TestReport(lastFailure, lastInfo));
 
     int i1 = 1;
     int i2 = 2;
@@ -532,33 +518,31 @@ int main() {
 
         CHECK(2 == 1); // won't be executed
     } catch(const std::exception& e) {
-        gut::theReport::failure(gut::UnexpectedExceptionFailure(e, __FILE__, __LINE__));
+        gut::theListener.failure(gut::UnexpectedExceptionFailure(e, __FILE__, __LINE__));
     } catch(...) {
-        gut::theReport::failure(gut::UnknownExceptionFailure(__FILE__, __LINE__));
+        gut::theListener.failure(gut::UnknownExceptionFailure(__FILE__, __LINE__));
     }
 
     assert(lastFailure == "[error] unexpected exception with message \"a runtime error\" caught");
 
     // test EVAL
-    assert(lastEval == "");
+    assert(lastInfo == "");
     EVAL(i1);
-    assert(lastEval == "[info] i1 evaluates to 1");
+    assert(lastInfo == "[info] i1 evaluates to 1");
     EVAL((i1 + 3 * i2));
-    assert(lastEval == "[info] (i1 + 3 * i2) evaluates to 7");
+    assert(lastInfo == "[info] (i1 + 3 * i2) evaluates to 7");
 
     // test INFO
-    assert(lastInfo == "");
     INFO("message #1");
     assert(lastInfo == "[info] message #1");
     INFO("message #2");
     assert(lastInfo == "[info] message #2");
 
     // test WARN
-    assert(lastWarn == "");
     WARN("message #1");
-    assert(lastWarn == "[warning] message #1");
+    assert(lastInfo == "[warning] message #1");
     WARN("message #2");
-    assert(lastWarn == "[warning] message #2");
+    assert(lastInfo == "[warning] message #2");
 
     // test FAIL
     FAIL("user failure");
