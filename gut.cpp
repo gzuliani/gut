@@ -20,6 +20,20 @@ public:
 std::ostream& operator<<(std::ostream& os, const Object& co) {
 	return os << "Object#" << co.GetId(); }
 
+class NonCopiableObject {
+	int id_;
+	NonCopiableObject(const NonCopiableObject& co);
+	NonCopiableObject& operator=(const NonCopiableObject& co);
+public:
+	NonCopiableObject(int id) : id_(id) { }
+	bool operator==(const NonCopiableObject& co) const { return id_ == co.id_; }
+	int GetId() const { return id_; }
+};
+
+std::ostream& operator<<(std::ostream& os, const NonCopiableObject& nco) {
+	return os << "NonCopiableObject#" << nco.GetId();
+}
+
 class NonSerializableObject {
 	int m_id;
 public:
@@ -52,10 +66,13 @@ int main() {
 	bool b1 = true;
 	bool b2 = false;
 	CHECK(b1 == b2);
+	CHECK(b1 == false);
+	CHECK(true == b2);
+	CHECK(true == false);
 
 	// other int types
-	unsigned short us = 7;
-	unsigned long ul = 8;
+	unsigned short us = 3;
+	unsigned long ul = 4;
 	CHECK(us == ul);
 	long long ll1 = 23612343;
 	long long ll2 = 876543445676;
@@ -65,6 +82,57 @@ int main() {
 	char c1 = 'o';
 	unsigned char uc2 = 0x05;
 	CHECK(c1 == uc2);
+
+	// short vs. unsigned char
+	short ss1 = 6;
+	CHECK(ss1 == uc2);
+	CHECK(uc2 == ss1);
+
+	// short vs. unsigned short
+	CHECK(ss1 == us);
+	CHECK(us == ss1);
+
+	// short vs. unsigned int
+	unsigned int ui = 7;
+	CHECK(ss1 == ui);
+	CHECK(ui == ss1);
+
+	// short vs. unsigned long
+	CHECK(ss1 == ul);
+	CHECK(ul == ss1);
+
+	// int vs. unsigned char
+	CHECK(i1 == uc2);
+	CHECK(uc2 == i1);
+
+	// int vs. unsigned short
+	CHECK(i1 == us);
+	CHECK(us == i1);
+
+	// int vs. unsigned int
+	CHECK(i1 == ui);
+	CHECK(ui == i1);
+
+	// int vs. unsigned long
+	CHECK(ul == i1);
+	CHECK(i1 == ul);
+
+	// long vs. unsigned char
+	long l1 = 8;
+	CHECK(l1 == uc2);
+	CHECK(uc2 == l1);
+
+	// long vs. unsigned short
+	CHECK(l1 == us);
+	CHECK(us == l1);
+
+	// long vs. unsigned int
+	CHECK(l1 == ui);
+	CHECK(ui == l1);
+
+	// long vs. unsigned long
+	CHECK(l1 == ul);
+	CHECK(ul == l1);
 
 	// pointers
 	int* pi1 = &i1;
@@ -108,6 +176,13 @@ int main() {
 	CHECK(Object(1) == o2);
 	CHECK(Object(1) == Object(2));
 
+	NonCopiableObject nco1(1);
+	NonCopiableObject nco2(2);
+	CHECK(nco1 == nco2);
+	CHECK(nco1 == NonCopiableObject(2));
+	CHECK(NonCopiableObject(1) == nco2);
+	CHECK(NonCopiableObject(1) == NonCopiableObject(2));
+
 	NonSerializableObject nso1(1);
 	NonSerializableObject nso2(2);
 	CHECK(nso1 == nso2);
@@ -115,11 +190,30 @@ int main() {
 	CHECK(NonSerializableObject(1) == nso2);
 	CHECK(NonSerializableObject(1) == NonSerializableObject(2));
 
-//	CHECK(i1 = i2); // should have been i1 == i2
-//	CHECK(i1 + 1 == 1);
-
 	// function arguments are not expanded
-	int even = 2;
-	CHECK(isOdd(even));
+	CHECK(isOdd(i2));
+
+	// other comparisons
+	CHECK(i1 < i1);
+	CHECK(i2 < i1);
+	CHECK(i1 <= i1); // pass!
+	CHECK(i2 <= i1);
+	CHECK(i1 > i1);
+	CHECK(i1 > i2);
+	CHECK(i1 >= i1); // pass!
+	CHECK(i1 >= i2);
+
+	// signed/unsigned comparisons
+	CHECK(ui < us);
+	CHECK(uc2 <= i1);
+	CHECK(i1 > 3L);
+	CHECK(i1 >= 3UL);
+
+	// comparing pointers
+	int a[10];
+	int* pa1 = a;
+	int* pa2 = a + 3;
+
+	CHECK(pa1 >= pa2);
 	return 0;
 }
