@@ -1,10 +1,24 @@
 #ifndef GUT_H
 #define GUT_H
 
+#define GUT_HAS_CHRONO
+
+#if (_MSC_VER<=1600) // VC10
+#undef GUT_HAS_CHRONO
+#endif
+
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
+
+#ifdef GUT_HAS_CHRONO
+#include <chrono>
+#else
+#include <time.h>
+#endif
+
 
 #define INT_BASE Dec
 #define CHAR_BASE Hex
@@ -13,6 +27,8 @@
 #define CONCAT_(a, b) CONCAT(a, b)
 #define INT_TO_STRING CONCAT_(as, INT_BASE)
 #define CHAR_TO_STRING CONCAT_(as, CHAR_BASE)
+
+namespace gut {
 
 std::string asDec(long long value, const char* suffix) {
 	std::ostringstream os;
@@ -142,12 +158,14 @@ struct Expression {
 std::string Expression::last;
 
 template<typename T, typename U>
-struct BinaryExpression : public Expression {
+class BinaryExpression : public Expression {
+protected:
 	const T& lhs_;
 	const U& rhs_;
+public:
 	BinaryExpression(const T& lhs, const U& rhs) : lhs_(lhs), rhs_(rhs) { }
 	virtual std::string toString() const {
-		return ::toString(lhs_) + " " + getOpName() + " " + ::toString(rhs_);
+		return gut::toString(lhs_) + " " + getOpName() + " " + gut::toString(rhs_);
 	}
 	virtual std::string getOpName() const = 0;
 };
@@ -396,23 +414,167 @@ public:
 	}
 };
 
+struct Location {
+	const char* file;
+	int line;
+	Location(const char* file_, int line_) : file(file_), line(line_) {
+	}
+};
+
+struct Failure {
+protected:
+	std::ostringstream description;
+public:
+	Location location;
+	Failure(const char* file, int line) : location(file, line) {
+	}
+	std::string what() const {
+		return description.str();
+	}
+};
+
+struct CheckFailure : public Failure {
+	CheckFailure(const char* expression, const std::string& expansion, const char* file, int line) : Failure(file, line) {
+		description << expression << " evaluates to " << expansion;
+	}
+};
+
+struct NoThrowFailure : public Failure {
+	NoThrowFailure(const char* expression, const char* file, int line) : Failure(file, line) {
+		description << expression << " did not throw";
+	}
+};
+
+struct WrongTypedExceptionFailure : public Failure {
+	WrongTypedExceptionFailure(const char* expression, const std::exception& exception, const char* file, int line) : Failure(file, line) {
+		description << expression << " threw an unexpected exception \"" << exception.what() << "\"";
+	}
+};
+
+struct WrongExceptionFailure : public Failure {
+	WrongExceptionFailure(const char* expression, const char* file, int line) : Failure(file, line) {
+		description << expression << " threw an unknown exception";
+	}
+};
+
+struct UnexpectedExceptionFailure : public Failure {
+	UnexpectedExceptionFailure(const std::exception& exception, const char* file, int line) : Failure(file, line) {
+		description << "unexpected exception \"" << exception.what() << "\" caught";
+	}
+};
+
+struct UnknownExceptionFailure : public Failure {
+	UnknownExceptionFailure(const char* file, int line) : Failure(file, line) {
+		description << "unknown exception caught";
+	}
+};
+
+#ifdef GUT_HAS_CHRONO
+struct Clock {
+	std::chrono::steady_clock::time_point start_;
+	Clock() : start_(std::chrono::steady_clock::now()) { }
+	double elapsedTime() {
+		return std::chrono::duration_cast<std::chrono::milliseconds>(
+			std::chrono::steady_clock::now() - start_).count() / 1000.;
+	}
+};
+#else
+struct Clock {
+	clock_t start_;
+	Clock() { start_ = clock(); }
+	double elapsedTime() {
+		return static_cast<double>(clock() - start_) / CLOCKS_PER_SEC;
+	}
+};
+#endif
+
+class Report {
+	static std::shared_ptr<Report> report_;
+protected:
+	Clock clock_;
+public:
+	static void set(std::shared_ptr<Report> report) {
+		report_ = report;
+	}
+	static void start() {
+		if (report_)
+			report_->onStart();
+	}
+	static void end() {
+		if (report_)
+			report_->onEnd();
+	}
+	static void failure(const Failure& failure) {
+		if (report_)
+			report_->onFailure(failure);
+	}
+protected:
+	virtual void onStart() { }
+	virtual void onEnd() { }
+	virtual void onFailure(const Failure& /*failure*/) { }
+};
+
+std::shared_ptr<Report> Report::report_;
+
+class DefaultReport : public gut::Report {
+	size_t count_;
+public:
+	size_t count() const {
+		return count_;
+	}
+	DefaultReport() : count_(0) { }
+protected:
+	virtual void onFailure(const gut::Failure& failure) {
+		std::cout << failure.location.file << "(" << failure.location.line << ") : " << failure.what() << std::endl;
+		++count_;
+	}
+	virtual void onEnd() {
+		std::cout << "Test suite ran in " << clock_.elapsedTime() << "s." << std::endl;
+		if (count_ == 0)
+			std::cout << "All tests passed." << std::endl;
+		else
+			std::cout << count_ << " test(s) failed." << std::endl;
+	}
+};
+
+} // namespace gut
+
 #define CHECK(expr_) \
 	do { \
-		if (!(Capture()->*expr_)) \
-			std::cout << __FILE__ << "(" << __LINE__ << "): " << #expr_ << " evaluates to " << Expression::last << std::endl; \
+		if (!(gut::Capture()->*expr_)) \
+			gut::Report::failure(gut::CheckFailure(#expr_, gut::Expression::last, __FILE__, __LINE__)); \
 	} while (0)
 
 #define THROWS(expr_, exception_) \
 	do { \
 		try { \
 			(void)(expr_); \
-			std::cout << __FILE__ << "(" << __LINE__ << "): " << #expr_ << " did not throw" << std::endl; \
+			gut::Report::failure(gut::NoThrowFailure(#expr_, __FILE__, __LINE__)); \
 		} catch(const exception_&) { \
 		} catch(const std::exception& e_) { \
-			std::cout << __FILE__ << "(" << __LINE__ << "): " << #expr_ << " threw the unexpected exception \"" << e_.what() << "\"" << std::endl; \
+			gut::Report::failure(gut::WrongTypedExceptionFailure(#expr_, e_, __FILE__, __LINE__)); \
 		} catch(...) { \
-			std::cout << __FILE__ << "(" << __LINE__ << "): " << #expr_ << " threw an unexpected unknown exception" << std::endl; \
+			gut::Report::failure(gut::WrongExceptionFailure(#expr_, __FILE__, __LINE__)); \
 		} \
 	} while (0)
+
+#define TEST \
+	void runTest(); \
+	int main() { \
+		auto report = std::make_shared<gut::DefaultReport>(); \
+		gut::Report::set(report); \
+		gut::Report::start(); \
+		try { \
+			runTest(); \
+		} catch(const std::exception& e) { \
+			gut::Report::failure(gut::UnexpectedExceptionFailure(e, __FILE__, __LINE__)); \
+		} catch(...) { \
+			gut::Report::failure(gut::UnknownExceptionFailure(__FILE__, __LINE__)); \
+		} \
+		gut::Report::end(); \
+		return report->count(); \
+	} \
+	void runTest()
+
 
 #endif // GUT_H
