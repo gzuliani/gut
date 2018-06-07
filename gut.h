@@ -12,6 +12,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #ifdef GUT_HAS_CHRONO
 #include <chrono>
@@ -566,6 +567,29 @@ struct UnknownExceptionFailure : public Fatal {
 	}
 };
 
+struct TestSelection {
+  virtual bool shouldRun(const std::string& testName) = 0;
+};
+
+struct Schedule : public TestSelection {
+  std::vector<std::string> testNames;
+  size_t size() const {
+    return testNames.size();
+  }
+  virtual bool shouldRun(const std::string& testName) {
+    testNames.push_back(testName);
+    return false;
+  }
+};
+
+struct SingleTestSelection : public TestSelection {
+  std::string testName_;
+  SingleTestSelection(const std::string& testName) : testName_(testName) { }
+  virtual bool shouldRun(const std::string& testName) {
+    return testName == testName_;
+  }
+};
+
 #ifdef GUT_HAS_CHRONO
 struct Clock {
 	std::chrono::steady_clock::time_point start_;
@@ -593,44 +617,74 @@ public:
 	static void set(std::shared_ptr<Report> report) {
 		report_ = report;
 	}
-	static void start() {
+	static void start(const std::string& label) {
 		if (report_)
-			report_->onStart();
+			report_->onStart(label);
 	}
 	static void end() {
 		if (report_)
 			report_->onEnd();
+	}
+	static void startTest(const std::string& name) {
+		if (report_)
+			report_->onStartTest(name);
+	}
+	static void endTest() {
+		if (report_)
+			report_->onEndTest();
 	}
 	static void failure(const Failure& failure) {
 		if (report_)
 			report_->onFailure(failure);
 	}
 protected:
-	virtual void onStart() { }
+	virtual void onStart(const std::string& /*label*/) { }
 	virtual void onEnd() { }
+	virtual void onStartTest(const std::string& /*name*/) { }
+	virtual void onEndTest() { }
 	virtual void onFailure(const Failure& /*failure*/) { }
 };
 
 std::shared_ptr<Report> Report::report_;
 
 class DefaultReport : public gut::Report {
-	size_t count_;
+	size_t tests_;
+	size_t testFailures_;
+	size_t totalFailures_;
+	size_t failedTests_;
 public:
-	size_t count() const {
-		return count_;
+	size_t failedTestCount() const {
+		return failedTests_;
 	}
-	DefaultReport() : count_(0) { }
+	DefaultReport() : tests_(0), testFailures_(0), totalFailures_(0), failedTests_(0) { }
 protected:
-	virtual void onFailure(const gut::Failure& failure) {
-		std::cout << failure.location.file << "(" << failure.location.line << ") : " << failure.what() << std::endl;
-		++count_;
+	virtual void onStart(const std::string& label) {
+		std::cout << "Testing " << label << "..." << std::endl;
 	}
 	virtual void onEnd() {
-		std::cout << "Test suite ran in " << clock_.elapsedTime() << "s." << std::endl;
-		if (count_ == 0)
-			std::cout << "All tests passed." << std::endl;
+		std::cout << "Ran " << tests_ << " test(s) in " << clock_.elapsedTime() << "s." << std::endl;
+		if (failedTests_ == 0)
+			std::cout << "OK - all tests passed." << std::endl;
 		else
-			std::cout << count_ << " test(s) failed." << std::endl;
+			std::cout << "FAILED - " << totalFailures_ << " failure(s) in " << failedTests_ << " test(s)" << std::endl;
+	}
+	virtual void onStartTest(const std::string& name) {
+		++tests_;
+		testFailures_ = 0;
+		std::cout << name << ": ";
+	}
+	virtual void onEndTest() {
+		if (testFailures_ == 0)
+			std::cout << "OK" << std::endl;
+		else
+			++failedTests_;
+	}
+	virtual void onFailure(const gut::Failure& failure) {
+		if (testFailures_ == 0)
+			std::cout << "FAILED" << std::endl;
+		std::cout << " " << failure.location.file << "(" << failure.location.line << ") : " << failure.what() << std::endl;
+		++testFailures_;
+		++totalFailures_;
 	}
 };
 
@@ -661,24 +715,33 @@ protected:
 			throw gut::AbortTest();\
 		}
 
-#define TEST \
-	void runTest(); \
+#define TEST_SUITE(name_) \
+	void runTests_(gut::TestSelection& selection_); \
 	int main() { \
-		auto report = std::make_shared<gut::DefaultReport>(); \
-		gut::Report::set(report); \
-		gut::Report::start(); \
-		try { \
-			runTest(); \
-		} catch(const gut::AbortTest&) { \
-		} catch(const std::exception& e) { \
-			gut::Report::failure(gut::UnexpectedExceptionFailure(e, __FILE__, __LINE__)); \
-		} catch(...) { \
-			gut::Report::failure(gut::UnknownExceptionFailure(__FILE__, __LINE__)); \
+		gut::Schedule schedule_; \
+		runTests_(schedule_); \
+		auto report_ = std::make_shared<gut::DefaultReport>(); \
+		gut::Report::set(report_); \
+		gut::Report::start(name_); \
+		for (const std::string& testName_ : schedule_.testNames) { \
+			gut::SingleTestSelection testsToPerform_(testName_); \
+			gut::Report::startTest(testName_); \
+			try { \
+				runTests_(testsToPerform_); \
+			} catch(const gut::AbortTest&) { \
+			} catch(const std::exception& e_) { \
+				gut::Report::failure(gut::UnexpectedExceptionFailure(e_, __FILE__, __LINE__)); \
+			} catch(...) { \
+				gut::Report::failure(gut::UnknownExceptionFailure(__FILE__, __LINE__)); \
+			} \
+			gut::Report::endTest(); \
 		} \
 		gut::Report::end(); \
-		return report->count(); \
+		return report_->failedTestCount(); \
 	} \
-	void runTest()
+	void runTests_(gut::TestSelection& selection_)
 
+#define TEST(name_) \
+	if (selection_.shouldRun(name_))
 
 #endif // GUT_H
