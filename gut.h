@@ -145,9 +145,10 @@ struct Expression {
 	virtual ~Expression() { }
 	virtual bool evaluate() const = 0;
 	virtual std::string toString() const = 0;
-	static bool logAndEvaluate(bool value) {
-		Expression::last = value ? "true" : "false";
-		return value;
+	template <typename T>
+	static bool logAndEvaluate(const T& value) {
+		Expression::last = gut::toString(value);
+		return static_cast<bool>(value);
 	}
 	bool logAndEvaluate() {
 		Expression::last = toString();
@@ -395,6 +396,37 @@ public:
 	OPERATION_NOT_SUPPORTED operator^ (const Term<T>& term) const;
 	OPERATION_NOT_SUPPORTED operator>>(int term) const;
 	OPERATION_NOT_SUPPORTED operator<<(int term) const;
+};
+
+class Boolean {
+	bool value_;
+	std::string repr_;
+public:
+	Boolean(bool value) : value_(value), repr_(gut::toString(value)) { }
+	Boolean(bool value, const std::string& repr) : value_(value), repr_(repr) { }
+	operator bool() const {
+		return value_;
+	}
+	std::string str() const {
+		return repr_;
+	}
+};
+
+std::ostream& operator<<(std::ostream& os, const Boolean& boolean) {
+	return os << boolean.str();
+}
+
+class TextFlow {
+	std::ostringstream oss_;
+public:
+	template <typename T>
+	TextFlow& operator<<(const T& item) {
+		oss_ << item;
+		return *this;
+	}
+	operator std::string() const {
+		return oss_.str();
+	}
 };
 
 struct NonStreamableTerm {
