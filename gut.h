@@ -487,28 +487,24 @@ public:
 
 class Boolean {
     bool value_;
-    std::string repr_;
+    mutable std::stringstream repr_;
 public:
-    Boolean(bool value) : value_(value), repr_(gut::toString(value)) { }
-    Boolean(bool value, const std::string& repr) : value_(value), repr_(repr) { }
-    operator bool() const {
+    Boolean(bool value) : value_(value) { }
+    Boolean(const Boolean& other) : value_(other.value_) {
+        repr_ << other.repr_.rdbuf();
+    }
+    explicit operator bool() const {
         return value_;
     }
     operator std::string() const {
-        return repr_;
+        if (!repr_.rdbuf()->in_avail())
+            repr_ << std::boolalpha << value_;
+        return repr_.str();
     }
-};
-
-class TextFlow {
-    std::ostringstream oss_;
-public:
-    template <typename T>
-    TextFlow& operator<<(const T& item) {
-        oss_ << item;
+    template<typename T>
+    Boolean& operator<<(const T& item) {
+        repr_ << item;
         return *this;
-    }
-    operator std::string() const {
-        return oss_.str();
     }
 };
 
