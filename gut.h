@@ -200,14 +200,6 @@ struct Expression {
     virtual ~Expression() { }
     virtual bool evaluate() const = 0;
     virtual std::string toString() const = 0;
-    template <typename T>
-    static bool logAndEvaluate(const T& value) {
-        if (HasOperatorString<T>::value)
-            Expression::last = StringRepr<T, HasOperatorString<T>::value>(value).str();
-        else
-            Expression::last = gut::toString(static_cast<bool>(value));
-        return static_cast<bool>(value);
-    }
     bool logAndEvaluate() {
         Expression::last = toString();
         return evaluate();
@@ -215,6 +207,23 @@ struct Expression {
 };
 
 std::string Expression::last;
+
+template<typename T>
+class UnaryExpression : public Expression {
+protected:
+    const T& value_;
+public:
+    UnaryExpression(const T& value) : value_(value) { }
+    virtual bool evaluate() const {
+        return static_cast<bool>(value_);
+    }
+    virtual std::string toString() const {
+        if (HasOperatorString<T>::value)
+            return StringRepr<T, HasOperatorString<T>::value>(value_).str();
+        else
+            return gut::toString(static_cast<bool>(value_));
+    }
+};
 
 template<typename T, typename U>
 class BinaryExpression : public Expression {
@@ -458,7 +467,7 @@ public:
         return compare<e_greaterThanOrEqual>(lhs_, rhs);
     }
     operator bool() const {
-        return Expression::logAndEvaluate(lhs_);
+        return UnaryExpression<T>(lhs_).logAndEvaluate();
     }
     template<typename U>
     UNEXPECTED_ASSIGNMENT operator=(const U& value) const;
