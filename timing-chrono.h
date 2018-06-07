@@ -17,7 +17,9 @@ public:
     template<class T>
     bool operator>(const T& duration) const { return seconds_ > duration; }
     bool operator>(int duration) const { return seconds_.count() > duration; }
-    bool operator>(double duration) const { return seconds_.count() > duration; }
+    bool operator>(double duration) const {
+        return seconds_.count() > duration;
+    }
 };
 
 class Timer {

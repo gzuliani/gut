@@ -22,7 +22,7 @@ typedef StaticFlag<ColorInConsole_> ColorInConsole;
 
     #include "windows/colors.h"
 
-#elif  __linux__
+#elif __linux__
 
     #include "linux/colors.h"
 

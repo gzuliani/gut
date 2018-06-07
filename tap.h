@@ -24,7 +24,7 @@ public:
             return;
         os_ << "1.." << tests << std::endl;
         if (tests > 0) {
-            float okRatio = (tests - failedTests) * 100. / tests;
+            double okRatio = (tests - failedTests) * 100. / tests;
             os_
                 << "# failed " << failedTests << "/" << tests << " test(s), "
                 << std::fixed << std::setprecision(1)

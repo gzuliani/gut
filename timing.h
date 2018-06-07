@@ -3,7 +3,7 @@
 
 #define GUT_HAS_CHRONO
 
-#if defined (_MSC_VER) && (_MSC_VER <= 1600)
+#if defined(_MSC_VER) && (_MSC_VER <= 1600)
 #undef GUT_HAS_CHRONO
 #endif
 

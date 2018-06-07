@@ -22,7 +22,7 @@ typedef StaticFlag<BreakInDebugger_> BreakInDebugger;
 
     #include "windows/debugger.h"
 
-#elif  __linux__
+#elif __linux__
 
     #include "linux/debugger.h"
 
