@@ -1,12 +1,6 @@
 #ifndef GUT_H
 #define GUT_H
 
-#define GUT_HAS_CHRONO
-
-#if defined (_MSC_VER) && (_MSC_VER <= 1600)
-#undef GUT_HAS_CHRONO
-#endif
-
 #include <cstring>
 #include <iomanip>
 #include <iostream>
@@ -15,51 +9,12 @@
 #include <string>
 #include <vector>
 
-#ifdef GUT_HAS_CHRONO
-#include <chrono>
-#else
-#include <time.h>
-#endif
-
 #if defined __GNUC__ && (__GNUC__ < 4 || (__GNUC__ == 4 && __GNUC_MINOR__ < 6))
 #pragma GCC system_header
 #endif
 
-namespace gut {
-
-// static flag, initially reset; declare an instance to set it
-template <class T>
-class StaticFlag {
-    static bool flag_;
-public:
-    StaticFlag() {
-        flag_ = true;
-    }
-    static bool enabled() {
-        return flag_;
-    }
-};
-
-// enable/disable colors in console
-template <class T>
-bool StaticFlag<T>::flag_ = false;
-
-namespace color {
-
-struct ColorInConsole_ {};
-typedef StaticFlag<ColorInConsole_> ColorInConsole;
-
-#define GUT_ENABLE_COLORINCONSOLE gut::color::ColorInConsole colorInConsole_;
-
-} // namespace color
-
-} // namespace gut
-
-#ifdef _WIN32
-#include "windows/colors.h"
-#else
-#include "linux/colors.h"
-#endif
+#include "colors.h"
+#include "timing.h"
 
 #define GUT_INT_BASE Dec
 #define GUT_CHAR_BASE Hex
@@ -78,7 +33,7 @@ std::string asDec(long long value, const char* suffix) {
     return os.str();
 }
 
-template <typename T>
+template<class T>
 std::string asDec(const T& value) {
     return asDec(value, "");
 }
@@ -103,7 +58,7 @@ std::string asDec(unsigned long long value) {
     return asDec(value, "ull");
 }
 
-std::string asHex(long long value, size_t width) {
+std::string asHex(long long value, int width) {
     std::ostringstream os;
     os << "0x" << std::hex << std::setw(width) << std::setfill('0') << value;
     return os.str();
@@ -113,17 +68,17 @@ std::string asHex(char value) {
     return asHex(static_cast<int>(value), 2);
 }
 
-template <typename T>
+template<class T>
 std::string asHex(const T& value) {
     return asHex(value, sizeof(T) * 2);
 }
 
-template <typename T>
+template<class T>
 std::string intToString(const T& value) {
     return GUT_INT_TO_STRING(value);
 }
 
-template <typename T>
+template<class T>
 std::string toString(const T& value);
 
 std::string toString(const std::string& value) {
@@ -182,7 +137,7 @@ std::string toString(std::nullptr_t) {
     return "<nullptr>";
 }
 
-template <typename T>
+template<class T>
 class HasOperatorString {
     typedef char yes[1];
     typedef char no [2];
@@ -193,34 +148,34 @@ class HasOperatorString {
 
     struct Derived : T, Base {};
 
-    template <typename U, U u>
+    template<class U, U u>
     struct Check {};
 
-    template <typename U>
+    template<class U>
     static no& check_(
         Check<std::string (Base::*)() const, &U::operator std::string>*);
 
-    template <typename U>
+    template<class U>
     static yes& check_(...);
 
 public:
     static const bool value = sizeof(yes) == sizeof(check_<Derived>(0));
 };
 
-template <>
+template<>
 class HasOperatorString<bool> {
 public:
     static const bool value = false;
 };
 
-template <typename T, bool HasOperatorString = true>
+template<class T, bool HasOperatorString = true>
 struct StringRepr {
     std::string repr;
     StringRepr(const T& item) : repr(static_cast<std::string>(item)) {}
     std::string str() const { return repr; }
 };
 
-template <typename T>
+template<class T>
 struct StringRepr<T, false> {
     StringRepr(const T& /*item*/) {}
     static std::string str() { return "<?>"; }
@@ -240,7 +195,7 @@ struct Expression {
 
 std::string Expression::last;
 
-template <typename T>
+template<class T>
 class UnaryExpression : public Expression {
 protected:
     const T& value_;
@@ -262,7 +217,7 @@ __pragma(warning(pop))
     }
 };
 
-template <typename T, typename U>
+template<class T, class U>
 class BinaryExpression : public Expression {
 protected:
     const T& lhs_;
@@ -270,23 +225,24 @@ protected:
 public:
     BinaryExpression(const T& lhs, const U& rhs) : lhs_(lhs), rhs_(rhs) {}
     virtual std::string toString() const {
-        return gut::toString(lhs_)
+        using gut::toString;
+        return toString(lhs_)
             + " "
             + getOpName()
             + " "
-            + gut::toString(rhs_);
+            + toString(rhs_);
     }
     virtual std::string getOpName() const = 0;
 };
 
-template <typename T, typename U>
+template<class T, class U>
 struct Equal : public BinaryExpression<T, U> {
     Equal(const T& lhs, const U& rhs) : BinaryExpression<T, U>(lhs, rhs) {}
     virtual bool evaluate() const { return this->lhs_ == this->rhs_; }
     virtual std::string getOpName() const { return "=="; }
 };
 
-template <typename T, typename U>
+template<class T, class U>
 struct NotEqual : public BinaryExpression<T, U> {
     NotEqual(const T& lhs, const U& rhs)
         : BinaryExpression<T, U>(lhs, rhs) {}
@@ -294,7 +250,7 @@ struct NotEqual : public BinaryExpression<T, U> {
     virtual std::string getOpName() const { return "!="; }
 };
 
-template <typename T, typename U>
+template<class T, class U>
 struct LessThan : public BinaryExpression<T, U> {
     LessThan(const T& lhs, const U& rhs)
         : BinaryExpression<T, U>(lhs, rhs) {}
@@ -302,7 +258,7 @@ struct LessThan : public BinaryExpression<T, U> {
     virtual std::string getOpName() const { return "<"; }
 };
 
-template <typename T, typename U>
+template<class T, class U>
 struct LessThanOrEqual : public BinaryExpression<T, U> {
     LessThanOrEqual(const T& lhs, const U& rhs)
         : BinaryExpression<T, U>(lhs, rhs) {}
@@ -310,7 +266,7 @@ struct LessThanOrEqual : public BinaryExpression<T, U> {
     virtual std::string getOpName() const { return "<="; }
 };
 
-template <typename T, typename U>
+template<class T, class U>
 struct GreaterThan : public BinaryExpression<T, U> {
     GreaterThan(const T& lhs, const U& rhs)
         : BinaryExpression<T, U>(lhs, rhs) {}
@@ -318,7 +274,7 @@ struct GreaterThan : public BinaryExpression<T, U> {
     virtual std::string getOpName() const { return ">"; }
 };
 
-template <typename T, typename U>
+template<class T, class U>
 struct GreaterThanOrEqual : public BinaryExpression<T, U> {
     GreaterThanOrEqual(const T& lhs, const U& rhs)
         : BinaryExpression<T, U>(lhs, rhs) {}
@@ -338,200 +294,200 @@ enum Operator {
 struct UNEXPECTED_ASSIGNMENT;
 struct OPERATION_NOT_SUPPORTED;
 
-template <typename T, typename U, Operator op>
+template<class T, class U, Operator op>
 struct ExprFactory {
     static OPERATION_NOT_SUPPORTED logAndEvaluate(const T&, const U&);
 };
 
-template <typename T, typename U>
+template<class T, class U>
 struct ExprFactory<T, U, e_equal> {
     static bool logAndEvaluate(const T& lhs, const U& rhs) {
         return Equal<T, U>(lhs, rhs).logAndEvaluate();
     }
 };
 
-template <typename T, typename U>
+template<class T, class U>
 struct ExprFactory<T, U, e_notEqual> {
     static bool logAndEvaluate(const T& lhs, const U& rhs) {
         return NotEqual<T, U>(lhs, rhs).logAndEvaluate();
     }
 };
 
-template <typename T, typename U>
+template<class T, class U>
 struct ExprFactory<T, U, e_lessThan> {
     static bool logAndEvaluate(const T& lhs, const U& rhs) {
         return LessThan<T, U>(lhs, rhs).logAndEvaluate();
     }
 };
 
-template <typename T, typename U>
+template<class T, class U>
 struct ExprFactory<T, U, e_lessThanOrEqual> {
     static bool logAndEvaluate(const T& lhs, const U& rhs) {
         return LessThanOrEqual<T, U>(lhs, rhs).logAndEvaluate();
     }
 };
 
-template <typename T, typename U>
+template<class T, class U>
 struct ExprFactory<T, U, e_greaterThan> {
     static bool logAndEvaluate(const T& lhs, const U& rhs) {
         return GreaterThan<T, U>(lhs, rhs).logAndEvaluate();
     }
 };
 
-template <typename T, typename U>
+template<class T, class U>
 struct ExprFactory<T, U, e_greaterThanOrEqual> {
     static bool logAndEvaluate(const T& lhs, const U& rhs) {
         return GreaterThanOrEqual<T, U>(lhs, rhs).logAndEvaluate();
     }
 };
 
-template <Operator op, typename T, typename U>
+template<Operator op, class T, class U>
 bool compare(const T& lhs, const U& rhs) {
     return ExprFactory<T, U, op>::logAndEvaluate(lhs, rhs);
 }
 
-template <Operator op>
+template<Operator op>
 bool compare(short lhs, unsigned int rhs) {
     return compare<op>(static_cast<unsigned int>(lhs), rhs);
 }
 
-template <Operator op>
+template<Operator op>
 bool compare(unsigned int lhs, short rhs) {
     return compare<op>(lhs, static_cast<unsigned int>(rhs));
 }
 
-template <Operator op>
+template<Operator op>
 bool compare(short lhs, unsigned long rhs) {
     return compare<op>(static_cast<unsigned long>(lhs), rhs);
 }
 
-template <Operator op>
+template<Operator op>
 bool compare(unsigned long lhs, short rhs) {
     return compare<op>(lhs, static_cast<unsigned long>(rhs));
 }
 
-template <Operator op>
+template<Operator op>
 bool compare(unsigned int lhs, int rhs) {
     return compare<op>(lhs, static_cast<unsigned int>(rhs));
 }
 
-template <Operator op>
+template<Operator op>
 bool compare(int lhs, unsigned int rhs) {
     return compare<op>(static_cast<unsigned int>(lhs), rhs);
 }
 
-template <Operator op>
+template<Operator op>
 bool compare(unsigned long lhs, int rhs) {
     return compare<op>(lhs, static_cast<unsigned long>(rhs));
 }
 
-template <Operator op>
+template<Operator op>
 bool compare(int lhs, unsigned long rhs) {
     return compare<op>(static_cast<unsigned long>(lhs), rhs);
 }
 
-template <Operator op>
+template<Operator op>
 bool compare(long lhs, unsigned int rhs) {
     return compare<op>(lhs, static_cast<long>(rhs));
 }
 
-template <Operator op>
+template<Operator op>
 bool compare(unsigned int lhs, long rhs) {
     return compare<op>(static_cast<long>(lhs), rhs);
 }
 
-template <Operator op>
+template<Operator op>
 bool compare(long lhs, unsigned long rhs) {
     return compare<op>(static_cast<unsigned long>(lhs), rhs);
 }
 
-template <Operator op>
+template<Operator op>
 bool compare(unsigned long lhs, long rhs) {
     return compare<op>(lhs, static_cast<unsigned long>(rhs));
 }
 
-template <Operator op>
+template<Operator op>
 bool compare(int lhs, unsigned long long rhs) {
     return compare<op>(static_cast<unsigned long long>(lhs), rhs);
 }
 
-template <Operator op>
+template<Operator op>
 bool compare(unsigned long long lhs, int rhs) {
     return compare<op>(lhs, static_cast<unsigned long long>(rhs));
 }
 
-template <Operator op, typename T>
+template<Operator op, class T>
 bool compare(T* lhs, int rhs) {
     return ExprFactory<T*, T*, op>::logAndEvaluate(
         lhs, reinterpret_cast<T*>(rhs));
 }
 
-template <Operator op, typename T>
+template<Operator op, class T>
 bool compare(T* lhs, long rhs) {
     return ExprFactory<T*, T*, op>::logAndEvaluate(
         lhs, reinterpret_cast<T*>(rhs));
 }
 
-template <Operator op, typename T>
+template<Operator op, class T>
 bool compare(T* lhs, long long rhs) {
     return ExprFactory<T*, T*, op>::logAndEvaluate(
         lhs, reinterpret_cast<T*>(rhs));
 }
 
-template <Operator op, typename T>
+template<Operator op, class T>
 bool compare(int lhs, T* rhs) {
     return ExprFactory<T*, T*, op>::logAndEvaluate(
         reinterpret_cast<T*>(lhs), rhs);
 }
 
-template <Operator op, typename T>
+template<Operator op, class T>
 bool compare(long lhs, T* rhs) {
     return ExprFactory<T*, T*, op>::logAndEvaluate(
         reinterpret_cast<T*>(lhs), rhs);
 }
 
-template <Operator op, typename T>
+template<Operator op, class T>
 bool compare(long long lhs, T* rhs) {
     return ExprFactory<T*, T*, op>::logAndEvaluate(
         reinterpret_cast<T*>(lhs), rhs);
 }
 
-template <Operator op, typename T>
+template<Operator op, class T>
 bool compare(T* lhs, std::nullptr_t rhs) {
     return ExprFactory<T*, std::nullptr_t, op>::logAndEvaluate(lhs, rhs);
 }
 
-template <Operator op, typename T>
+template<Operator op, class T>
 bool compare(std::nullptr_t lhs, T* rhs) {
     return ExprFactory<std::nullptr_t, T*, op>::logAndEvaluate(lhs, rhs);
 }
 
-template <typename T>
+template<class T>
 class Term {
     const T& lhs_;
 public:
     Term(const T& lhs) : lhs_(lhs) {}
-    template <typename U>
+    template<class U>
     bool operator==(const U& rhs) const {
         return compare<e_equal>(lhs_, rhs);
     }
-    template <typename U>
+    template<class U>
     bool operator!=(const U& rhs) const {
         return compare<e_notEqual>(lhs_, rhs);
     }
-    template <typename U>
+    template<class U>
     bool operator<(const U& rhs) const {
         return compare<e_lessThan>(lhs_, rhs);
     }
-    template <typename U>
+    template<class U>
     bool operator<=(const U& rhs) const {
         return compare<e_lessThanOrEqual>(lhs_, rhs);
     }
-    template <typename U>
+    template<class U>
     bool operator>(const U& rhs) const {
         return compare<e_greaterThan>(lhs_, rhs);
     }
-    template <typename U>
+    template<class U>
     bool operator>=(const U& rhs) const {
         return compare<e_greaterThanOrEqual>(lhs_, rhs);
     }
@@ -539,7 +495,7 @@ public:
         return UnaryExpression<T>(lhs_).logAndEvaluate();
     }
     Term& operator=(const Term&) = delete;
-    template <typename U>
+    template<class U>
     UNEXPECTED_ASSIGNMENT operator=(const U&) const;
     OPERATION_NOT_SUPPORTED operator&&(const Term<T>&) const;
     OPERATION_NOT_SUPPORTED operator||(const Term<T>&) const;
@@ -569,7 +525,7 @@ public:
             repr_ << std::boolalpha << value_;
         return repr_.str();
     }
-    template <typename T>
+    template<class T>
     Boolean& operator<<(const T& item) {
         repr_ << item;
         return *this;
@@ -577,7 +533,7 @@ public:
 };
 
 struct NonStreamableTerm {
-    template <typename T>
+    template<class T>
     NonStreamableTerm(const T&) {}
 };
 
@@ -585,7 +541,7 @@ std::ostream& operator<<(std::ostream& os, const NonStreamableTerm&) {
     return os << "{?}";
 }
 
-template <typename T>
+template<class T>
 std::string toString(const T& value) {
     std::ostringstream os;
 #if defined __GNUC__ && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __GNUC__ > 4)
@@ -601,7 +557,7 @@ std::string toString(const T& value) {
 
 class Capture {
 public:
-    template <typename T>
+    template<class T>
     Term<T> operator->*(const T& term) { return Term<T>(term); }
 };
 
@@ -829,8 +785,40 @@ struct FatalUnknownExceptionFailure : public Fatal {
     }
 };
 
+struct DurationFailure : public Error {
+    DurationFailure(
+        const char* expression,
+        const Duration& measured,
+        const Duration& limit,
+        const char* file,
+        int line) : Error(file, line) {
+        content()
+            << expression
+            << " took "
+            << gut::toString(measured)
+            << ", expected less than "
+            << gut::toString(limit);
+    }
+};
+
+struct FatalDurationFailure : public Fatal {
+    FatalDurationFailure(
+        const char* expression,
+        const Duration& measured,
+        const Duration& limit,
+        const char* file,
+        int line) : Fatal(file, line) {
+        content()
+            << expression
+            << " took "
+            << gut::toString(measured)
+            << ", expected less than "
+            << gut::toString(limit);
+    }
+};
+
 struct Eval : public Notice {
-    template <typename T>
+    template<class T>
     Eval(const char* expr, const T& value, const char* file, int line)
         : Notice(e_info, file, line) {
         content() << expr << " evaluates to " << value;
@@ -838,14 +826,15 @@ struct Eval : public Notice {
 };
 
 struct Info : public Notice {
-    Info(const char* message, const char* file, int line)
+    template<class T>
+    Info(T message, const char* file, int line)
         : Notice(e_info, file, line) {
         content() << message;
     }
 };
 
 struct Warn : public Notice {
-    template <typename T>
+    template<class T>
     Warn(T message, const char* file, int line)
         : Notice(e_warning, file, line) {
         content() << message;
@@ -853,7 +842,7 @@ struct Warn : public Notice {
 };
 
 struct UserFailure : public Fatal {
-    template <typename T>
+    template<class T>
     UserFailure(T message, const char* file, int line)
         : Fatal(file, line) {
         content() << message;
@@ -884,39 +873,15 @@ public:
 
 std::vector<Test> Suite::tests_;
 
-#ifdef GUT_HAS_CHRONO
-class Timer {
-    std::chrono::steady_clock::time_point start_;
-public:
-    Timer() { reset (); }
-    void reset() { start_ = std::chrono::steady_clock::now(); }
-    double elapsedTime() {
-        using namespace std::chrono;
-        return duration_cast<milliseconds>(
-            steady_clock::now() - start_).count() / 1000.;
-    }
-};
-#else
-class Timer {
-    clock_t start_;
-public:
-    Timer() { reset(); }
-    void reset() { start_ = clock(); }
-    double elapsedTime() {
-        return static_cast<double>(clock() - start_) / CLOCKS_PER_SEC;
-    }
-};
-#endif
-
 class Listener {
-    size_t testCount_;
+    int testCount_;
     int failedTestCount_;
-    size_t totalFailureCount_;
+    int totalFailureCount_;
     bool didTestFail_;
     Timer testTimer_;
     Timer globalTimer_;
 public:
-    template <class T>
+    template<class T>
     Listener(T report)
         : report_(std::make_shared<Model<T>>(std::move(report))) {}
     int failedTestCount() const { return failedTestCount_; }
@@ -975,12 +940,12 @@ private:
             int /*tests*/,
             int /*failedTests*/,
             int /*failures*/,
-            double /*duration*/) = 0;
+            const Duration& /*duration*/) = 0;
         virtual void startTest(
             const std::string& /*name*/) = 0;
         virtual void endTest(
             bool /*failed*/,
-            double /*duration*/) = 0;
+            const Duration& /*duration*/) = 0;
         virtual void failure(
             const char* /*file*/,
             int /*line*/,
@@ -995,7 +960,7 @@ private:
             const std::string& /*reason*/) = 0;
     };
 
-    template <class T>
+    template<class T>
     struct Model : public Concept {
         T report_;
         Model(T report) : report_(std::move(report)) {}
@@ -1004,7 +969,7 @@ private:
             int tests,
             int failedTests,
             int failures,
-            double duration) override {
+            const Duration& duration) override {
             report_.end(tests, failedTests, failures, duration);
         }
         virtual void startTest(
@@ -1013,7 +978,7 @@ private:
         }
         virtual void endTest(
             bool failed,
-            double duration) override {
+            const Duration& duration) override {
             report_.endTest(failed, duration);
         }
         virtual void failure(
@@ -1047,13 +1012,17 @@ public:
      : os_(os), testAlreadyFailed_(false) {}
     DefaultReport& operator=(const DefaultReport&) = delete;
     void start() { os_ << "Test suite started..." << std::endl; }
-    void end(int tests, int failedTests, int failures, double duration) {
+    void end(
+        int tests,
+        int failedTests,
+        int failures,
+        const Duration& duration) {
         os_ << "Ran "
             << tests
             << " test(s) in "
             << std::fixed << std::setprecision(0)
-            << duration * 1000.
-            << " ms."
+            << duration.seconds()
+            << "s."
             << std::endl;
         if (failedTests == 0)
             os_ << color::lime
@@ -1074,7 +1043,7 @@ public:
         testAlreadyFailed_ = false;
         os_ << name << ": ";
     }
-    void endTest(bool failed, double /*duration*/) {
+    void endTest(bool failed, const Duration& /*duration*/) {
         if (!failed) {
             os_ << "OK" << std::endl;
             flush(e_warning);
@@ -1196,7 +1165,7 @@ __pragma(pack(pop))
             gut::theListener.failure( \
                 gut::RequireFailure( \
                     #expr_, gut::Expression::last, __FILE__, __LINE__)); \
-            throw gut::AbortTest();\
+            throw gut::AbortTest(); \
         } \
     GUT_END
 

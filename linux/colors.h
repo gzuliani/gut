@@ -1,5 +1,5 @@
-#ifndef COLORS_H
-#define COLORS_H
+#ifndef GUT_LINUX_COLORS_H
+#define GUT_LINUX_COLORS_H
 
 namespace gut {
 
@@ -83,4 +83,4 @@ std::ostream& reset(std::ostream& os) {
 
 } // namespace gut
 
-#endif // COLORS_H
+#endif // GUT_LINUX_COLORS_H

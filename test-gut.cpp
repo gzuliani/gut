@@ -76,9 +76,9 @@ public:
         int /*tests*/,
         int /*failedTests*/,
         int /*failures*/,
-        double /*duration*/) {}
+        const gut::Duration& /*duration*/) {}
     void startTest(const std::string& /*name*/) {}
-    void endTest(bool /*failed*/, double /*duration*/) {}
+    void endTest(bool /*failed*/, const gut::Duration& /*duration*/) {}
     void failure(
         const char* /*file*/,
         int /*line*/,
