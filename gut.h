@@ -20,6 +20,7 @@
 #include <time.h>
 #endif
 
+#include "colors.h"
 
 #define INT_BASE Dec
 #define CHAR_BASE Hex
@@ -519,70 +520,121 @@ public:
 
 bool FailFast::enabled_ = false;
 
-#ifdef GUT_FAILFAST
-FailFast failFast_;
-#endif
+#define GUT_ENABLE_FAILFAST gut::FailFast failFast_;
 
-struct Failure {
-protected:
-	std::ostringstream description;
+#define PICK_NAME(id_) e_ ## id_,
+#define PICK_LABEL(id_) #id_,
+
+#define LEVELS(lambda_) \
+  lambda_(info) \
+  lambda_(warning) \
+  lambda_(error) \
+  lambda_(fatal) \
+
+enum Level { LEVELS(PICK_NAME) };
+static std::string level_name[] = { LEVELS(PICK_LABEL) };
+
+// no virtual methods here - see DefaultReport.log_
+class Notice {
+	Level level_;
+	Location location_;
+	std::ostringstream content_;
 public:
-	Location location;
-	Failure(const std::string& level, const char* file, int line) : location(file, line) {
-		description << "[" << level << "] ";
+	Notice(Level level, const char* file, int line) : level_(level), location_(file, line) {
+		content_ << "[" << level_name[level] << "] ";
+	}
+	Notice(const Notice& notice) : level_(notice.level_), location_(notice.location_) {
+		content_ << notice.content_.str();
+	}
+	Level level() const {
+		return level_;
 	}
 	std::string what() const {
-		return description.str();
+		return content_.str();
+	}
+	std::string toString() const {
+		std::ostringstream ss;
+		ss << location_.file << "(" << location_.line << ") : " << what();
+		return ss.str();
+	}
+protected:
+	std::ostream& content() {
+		return content_;
 	}
 };
 
-struct Error : public Failure {
-  Error(const char* file, int line) : Failure("error", file, line) { }
+struct Error : public Notice {
+	Error(const char* file, int line) : Notice(e_error, file, line) { }
 };
 
-struct Fatal : public Failure {
-  Fatal(const char* file, int line) : Failure("fatal", file, line) { }
+struct Fatal : public Notice {
+	Fatal(const char* file, int line) : Notice(e_fatal, file, line) { }
 };
 
 struct CheckFailure : public Error {
 	CheckFailure(const char* expression, const std::string& expansion, const char* file, int line) : Error(file, line) {
-		description << expression << " evaluates to " << expansion;
+		content() << expression << " evaluates to " << expansion;
 	}
 };
 
 struct RequireFailure : public Fatal {
 	RequireFailure(const char* expression, const std::string& expansion, const char* file, int line) : Fatal(file, line) {
-		description << expression << " evaluates to " << expansion;
+		content() << expression << " evaluates to " << expansion;
 	}
 };
 
 struct NoThrowFailure : public Error {
 	NoThrowFailure(const char* expression, const char* file, int line) : Error(file, line) {
-		description << expression << " did not throw";
+		content() << expression << " did not throw";
 	}
 };
 
 struct WrongTypedExceptionFailure : public Error {
 	WrongTypedExceptionFailure(const char* expression, const std::exception& exception, const char* file, int line) : Error(file, line) {
-		description << expression << " threw an unexpected exception \"" << exception.what() << "\"";
+		content() << expression << " threw an unexpected exception \"" << exception.what() << "\"";
 	}
 };
 
 struct WrongExceptionFailure : public Error {
 	WrongExceptionFailure(const char* expression, const char* file, int line) : Error(file, line) {
-		description << expression << " threw an unknown exception";
+		content() << expression << " threw an unknown exception";
 	}
 };
 
 struct UnexpectedExceptionFailure : public Fatal {
 	UnexpectedExceptionFailure(const std::exception& exception, const char* file, int line) : Fatal(file, line) {
-		description << "unexpected exception \"" << exception.what() << "\" caught";
+		content() << "unexpected exception \"" << exception.what() << "\" caught";
 	}
 };
 
 struct UnknownExceptionFailure : public Fatal {
 	UnknownExceptionFailure(const char* file, int line) : Fatal(file, line) {
-		description << "unknown exception caught";
+		content() << "unknown exception caught";
+	}
+};
+
+struct Eval : public Notice {
+	template <typename T>
+	Eval(const char* expression, const T& value, const char* file, int line) : Notice(e_info, file, line) {
+		content() << expression << " evaluates to " << value;
+	}
+};
+
+struct Info : public Notice {
+	Info(const char* message, const char* file, int line) : Notice(e_info, file, line) {
+		content() << message;
+	}
+};
+
+struct Warn : public Notice {
+	Warn(const char* message, const char* file, int line) : Notice(e_warning, file, line) {
+		content() << message;
+	}
+};
+
+struct UserFailure : public Fatal {
+	UserFailure(const char* message, const char* file, int line) : Fatal(file, line) {
+		content() << message;
 	}
 };
 
@@ -660,11 +712,23 @@ public:
 		if (report_)
 			report_->onEndTest();
 	}
-	static void failure(const Failure& failure) {
+	static void failure(const Notice& failure) {
 		if (report_)
 			report_->onFailure(failure);
 		if (FailFast::enabled())
 			throw AbortSuite();
+	}
+	static void eval(const Notice& eval) {
+		if (report_)
+			report_->onEval(eval);
+	}
+	static void info(const Notice& info) {
+		if (report_)
+			report_->onInfo(info);
+	}
+	static void warn(const Notice& warn) {
+		if (report_)
+			report_->onWarn(warn);
 	}
 	static void quit() {
 		if (report_)
@@ -675,17 +739,21 @@ protected:
 	virtual void onEnd() { }
 	virtual void onStartTest(const std::string& /*name*/) { }
 	virtual void onEndTest() { }
-	virtual void onFailure(const Failure& /*failure*/) { }
+	virtual void onFailure(const Notice& /*failure*/) { }
+	virtual void onEval(const Notice& /*eval*/) { }
+	virtual void onInfo(const Notice& /*info*/) { }
+	virtual void onWarn(const Notice& /*warn*/) { }
 	virtual void onQuit() { }
 };
 
 std::shared_ptr<Report> Report::report_;
 
-class DefaultReport : public gut::Report {
+class DefaultReport : public Report {
 	size_t tests_;
 	size_t testFailures_;
 	size_t totalFailures_;
 	size_t failedTests_;
+	std::vector<Notice> log_;
 public:
 	size_t failedTestCount() const {
 		return failedTests_;
@@ -698,9 +766,9 @@ protected:
 	virtual void onEnd() {
 		std::cout << "Ran " << tests_ << " test(s) in " << clock_.elapsedTime() << "s." << std::endl;
 		if (failedTests_ == 0)
-			std::cout << "OK - all tests passed." << std::endl;
+			std::cout << color::lime << "OK - all tests passed." << color::reset << std::endl;
 		else
-			std::cout << "FAILED - " << totalFailures_ << " failure(s) in " << failedTests_ << " test(s)" << std::endl;
+			std::cout << color::red << "FAILED - " << totalFailures_ << " failure(s) in " << failedTests_ << " test(s)." << color::reset << std::endl;
 	}
 	virtual void onStartTest(const std::string& name) {
 		++tests_;
@@ -708,20 +776,44 @@ protected:
 		std::cout << name << ": ";
 	}
 	virtual void onEndTest() {
-		if (testFailures_ == 0)
+		if (testFailures_ == 0) {
 			std::cout << "OK" << std::endl;
+			flushLog(e_warning);
+		}
 		else
-			++failedTests_;
+			testFailed();
+		clear();
 	}
-	virtual void onFailure(const gut::Failure& failure) {
+	virtual void onFailure(const Notice& failure) {
 		if (testFailures_ == 0)
 			std::cout << "FAILED" << std::endl;
-		std::cout << " " << failure.location.file << "(" << failure.location.line << ") : " << failure.what() << std::endl;
+		log_.push_back(failure);
 		++testFailures_;
 		++totalFailures_;
 	}
+	virtual void onEval(const Notice& eval) {
+		log_.push_back(eval);
+	}
+	virtual void onInfo(const Notice& info) {
+		log_.push_back(info);
+	}
+	virtual void onWarn(const Notice& warn) {
+		log_.push_back(warn);
+	}
 	virtual void onQuit() {
+		testFailed();
+	}
+	void testFailed() {
 		++failedTests_;
+		flushLog(e_info);
+	}
+	void flushLog(Level minLevel) {
+		for (auto notice : log_)
+			if (notice.level() >= minLevel)
+				std::cout << " " << notice.toString() << std::endl;
+	}
+	void clear() {
+		log_.clear();
 	}
 };
 
@@ -787,5 +879,25 @@ int main() {
 	static void MAKE_UNIQUE(test_)(); \
 	gut::Suite::add MAKE_UNIQUE(testAddition_)(name_, &CONCAT_(test_, __LINE__)); \
 	static void MAKE_UNIQUE(test_)()
+
+#define EVAL(expr_) \
+	do { \
+		gut::Report::eval(gut::Eval(#expr_, expr_, __FILE__, __LINE__)); \
+	} while (0)
+
+#define INFO(message_) \
+	do { \
+		gut::Report::info(gut::Info(message_, __FILE__, __LINE__)); \
+	} while (0)
+
+#define WARN(message_) \
+	do { \
+		gut::Report::warn(gut::Warn(message_, __FILE__, __LINE__)); \
+	} while (0)
+
+#define FAIL(message_) \
+	do { \
+		gut::Report::failure(gut::UserFailure(message_, __FILE__, __LINE__)); \
+	} while (0)
 
 #endif // GUT_H
