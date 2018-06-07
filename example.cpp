@@ -25,55 +25,52 @@ public:
 	}
 };
 
-TEST_SUITE("RecentlyUsedList") {
+TEST("Initial list is empty") {
+	RecentlyUsedList anEmptyList;
 
-	TEST("Initial list is empty") {
-		RecentlyUsedList anEmptyList;
+	CHECK(anEmptyList.empty());
+	CHECK(anEmptyList.size() == 0);
+}
 
-		CHECK(anEmptyList.empty());
-		CHECK(anEmptyList.size() == 0);
-	}
+TEST("Insertion to empty list is retained") {
+	RecentlyUsedList aListWithOneElement;
+	aListWithOneElement.insert("one");
 
-	TEST("Insertion to empty list is retained") {
-		RecentlyUsedList aListWithOneElement;
-		aListWithOneElement.insert("one");
+	CHECK(!aListWithOneElement.empty());
+	CHECK(aListWithOneElement.size() == 1);
+	CHECK(aListWithOneElement[0] == "one");
+}
 
-		CHECK(!aListWithOneElement.empty());
-		CHECK(aListWithOneElement.size() == 1);
-		CHECK(aListWithOneElement[0] == "one");
-	}
+TEST("Distinct insertions are retained in stack order") {
+	RecentlyUsedList aListWithManyElements;
+	aListWithManyElements.insert("one");
+	aListWithManyElements.insert("two");
+	aListWithManyElements.insert("three");
 
-	TEST("Distinct insertions are retained in stack order") {
-		RecentlyUsedList aListWithManyElements;
-		aListWithManyElements.insert("one");
-		aListWithManyElements.insert("two");
-		aListWithManyElements.insert("three");
+	CHECK(!aListWithManyElements.empty());
+	CHECK(aListWithManyElements.size() == 3);
+	CHECK(aListWithManyElements[0] == "three");
+	REQUIRE(aListWithManyElements[1] == "two");
+	CHECK(aListWithManyElements[2] == "one");
+}
 
-		CHECK(!aListWithManyElements.empty());
-		CHECK(aListWithManyElements.size() == 3);
-		CHECK(aListWithManyElements[0] == "three");
-		REQUIRE(aListWithManyElements[1] == "two");
-		CHECK(aListWithManyElements[2] == "one");
-	}
+TEST("Duplicate insertions are moved to the front but not inserted") {
+	RecentlyUsedList aListWithDuplicatedElements;
+	aListWithDuplicatedElements.insert("one");
+	aListWithDuplicatedElements.insert("two");
+	aListWithDuplicatedElements.insert("three");
+	aListWithDuplicatedElements.insert("two");
 
-	TEST("Duplicate insertions are moved to the front but not inserted") {
-		RecentlyUsedList aListWithDuplicatedElements;
-		aListWithDuplicatedElements.insert("one");
-		aListWithDuplicatedElements.insert("two");
-		aListWithDuplicatedElements.insert("three");
-		aListWithDuplicatedElements.insert("two");
+	CHECK(!aListWithDuplicatedElements.empty());
+	CHECK(aListWithDuplicatedElements.size() == 3);
+	CHECK(aListWithDuplicatedElements[0] == "two");
+	CHECK(aListWithDuplicatedElements[1] == "three");
+	CHECK(aListWithDuplicatedElements[2] == "one");
+}
 
-		CHECK(!aListWithDuplicatedElements.empty());
-		CHECK(aListWithDuplicatedElements.size() == 3);
-		CHECK(aListWithDuplicatedElements[0] == "two");
-		CHECK(aListWithDuplicatedElements[1] == "three");
-		CHECK(aListWithDuplicatedElements[2] == "one");
-	}
+TEST("Out of range indexing throws exception") {
+	RecentlyUsedList aListWithOneElement;
+	aListWithOneElement.insert("one");
 
-	TEST("Out of range indexing throws exception") {
-		RecentlyUsedList aListWithOneElement;
-		aListWithOneElement.insert("one");
-
-		THROWS(aListWithOneElement[1], std::out_of_range);
-	}
+	THROWS(aListWithOneElement[1], std::out_of_range);
 }
