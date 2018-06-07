@@ -65,6 +65,33 @@ std::string intToString(const T& value) {
 	return INT_TO_STRING(value);
 }
 
+template<typename T>
+std::string toString(const T& value) {
+	std::ostringstream os;
+	os << std::boolalpha << value;
+	return os.str();
+}
+
+std::string toString(const std::string& value) {
+	return std::string("\"") + value + "\"";
+}
+
+std::string toString(const char* value) {
+	return std::string("\"") + value + "\"";
+}
+
+std::string toString(char value) {
+	std::ostringstream os;
+	os << "'" << value << "' " << CHAR_TO_STRING(value);
+	return os.str();
+}
+
+std::string toString(unsigned char value) {
+	std::ostringstream os;
+	os << CHAR_TO_STRING(value);
+	return os.str();
+}
+
 std::string toString(short value) {
 	return intToString(value);
 }
@@ -97,58 +124,18 @@ std::string toString(unsigned long long value) {
 	return intToString(value);
 }
 
-std::string toString(char value) {
-	std::ostringstream os;
-	os << "'" << value << "' " << CHAR_TO_STRING(value);
-	return os.str();
-}
-
-std::string toString(unsigned char value) {
-	std::ostringstream os;
-	os << CHAR_TO_STRING(value);
-	return os.str();
-}
-
-std::string toString(const char* value) {
-	std::ostringstream os;
-	os << "\"" << value << "\"";
-	return os.str();
-}
-
-std::string toString(const std::string& value) {
-	std::ostringstream stream;
-	stream << "{" << value << "}";
-	return stream.str();
-}
-
-std::string toString(bool value) {
-	std::ostringstream stream;
-	stream << std::boolalpha << value;
-	return stream.str();
-}
-
-template<typename T>
-std::string toString(const T& value) {
-	std::ostringstream os;
-	os << value;
-	return os.str();
-}
-
 struct Expression {
+	static std::string last;
+	virtual ~Expression() { }
 	virtual bool evaluate() const = 0;
 	virtual std::string toString() const = 0;
-
-	static std::string last;
-
-	// unary expressions support
 	static bool logAndEvaluate(bool value) {
 		Expression::last = value ? "true" : "false";
 		return value;
 	}
-	// n-ary expressions support
-	static bool logAndEvaluate(const Expression& expression) {
-		Expression::last = expression.toString();
-		return expression.evaluate();
+	bool logAndEvaluate() {
+		Expression::last = toString();
+		return evaluate();
 	}
 };
 
@@ -166,55 +153,183 @@ struct BinaryExpression : public Expression {
 };
 
 template<typename T, typename U>
-struct Equal_ : public BinaryExpression<T, U> {
-	Equal_(const T& lhs, const U& rhs) : BinaryExpression<T, U>(lhs, rhs) { }
+struct Equal : public BinaryExpression<T, U> {
+	Equal(const T& lhs, const U& rhs) : BinaryExpression<T, U>(lhs, rhs) { }
+	virtual bool evaluate() const { return this->lhs_ == this->rhs_; }
 	virtual std::string getOpName() const { return "=="; }
 };
 
 template<typename T, typename U>
-struct Equal : public Equal_<T, U> {
-	Equal(const T& lhs, const U& rhs) : Equal_<T, U>(lhs, rhs) { }
-	virtual bool evaluate() const { return this->lhs_ == this->rhs_; }
-};
-
-template<typename T>
-struct Equal<T*, int> : public Equal_<T*, int> {
-	Equal(T* const& lhs, int rhs) : Equal_<T*, int>(lhs, rhs) { }
-	virtual bool evaluate() const { return this->lhs_ == reinterpret_cast<T*>(this->rhs_); }
-};
-
-template<typename T, typename U>
-struct NotEqual_ : public BinaryExpression<T, U> {
-	NotEqual_(const T& lhs, const U& rhs) : BinaryExpression<T, U>(lhs, rhs) { }
+struct NotEqual : public BinaryExpression<T, U> {
+	NotEqual(const T& lhs, const U& rhs) : BinaryExpression<T, U>(lhs, rhs) { }
+	virtual bool evaluate() const { return this->lhs_ != this->rhs_; }
 	virtual std::string getOpName() const { return "!="; }
 };
 
 template<typename T, typename U>
-struct NotEqual : public NotEqual_<T, U> {
-	NotEqual(const T& lhs, const U& rhs) : NotEqual_<T, U>(lhs, rhs) { }
-	virtual bool evaluate() const { return this->lhs_ != this->rhs_; }
+struct LessThan : public BinaryExpression<T, U> {
+	LessThan(const T& lhs, const U& rhs) : BinaryExpression<T, U>(lhs, rhs) { }
+	virtual bool evaluate() const { return this->lhs_ < this->rhs_; }
+	virtual std::string getOpName() const { return "<"; }
 };
 
-template<typename T>
-struct NotEqual<T*, int> : public NotEqual_<T*, int> {
-	NotEqual(T* const& lhs, int rhs) : NotEqual_<T*, int>(lhs, rhs) { }
-	virtual bool evaluate() const { return this->lhs_ != reinterpret_cast<T*>(this->rhs_); }
+template<typename T, typename U>
+struct LessThanOrEqual : public BinaryExpression<T, U> {
+	LessThanOrEqual(const T& lhs, const U& rhs) : BinaryExpression<T, U>(lhs, rhs) { }
+	virtual bool evaluate() const { return this->lhs_ <= this->rhs_; }
+	virtual std::string getOpName() const { return "<="; }
 };
 
-template<typename T>
-struct Equal<int, T*> : public Equal_<int, T*> {
-	Equal(int lhs, T* const& rhs) : Equal_<int, T*>(lhs, rhs) { }
-	virtual bool evaluate() const { return reinterpret_cast<T*>(this->lhs_) == this->rhs_; }
+template<typename T, typename U>
+struct GreaterThan : public BinaryExpression<T, U> {
+	GreaterThan(const T& lhs, const U& rhs) : BinaryExpression<T, U>(lhs, rhs) { }
+	virtual bool evaluate() const { return this->lhs_ > this->rhs_; }
+	virtual std::string getOpName() const { return ">"; }
 };
 
-template<typename T>
-struct NotEqual<int, T*> : public NotEqual_<int, T*> {
-	NotEqual(int lhs, T* const& rhs) : NotEqual_<int, T*>(lhs, rhs) { }
-	virtual bool evaluate() const { return reinterpret_cast<T*>(this->lhs_) != this->rhs_; }
+template<typename T, typename U>
+struct GreaterThanOrEqual : public BinaryExpression<T, U> {
+	GreaterThanOrEqual(const T& lhs, const U& rhs) : BinaryExpression<T, U>(lhs, rhs) { }
+	virtual bool evaluate() const { return this->lhs_ >= this->rhs_; }
+	virtual std::string getOpName() const { return ">="; }
+};
+
+enum Operator {
+	e_equal,
+	e_notEqual,
+	e_lessThan,
+	e_lessThanOrEqual,
+	e_greaterThan,
+	e_greaterThanOrEqual,
 };
 
 struct UNEXPECTED_ASSIGNMENT;
 struct OPERATION_NOT_SUPPORTED;
+
+template<typename T, typename U, Operator op>
+struct ExprFactory {
+	static bool logAndEvaluate(const T& /*lhs*/, const U& /*rhs*/) {
+		OPERATION_NOT_SUPPORTED dummy;
+		return false;
+	}
+};
+
+template<typename T, typename U>
+struct ExprFactory<T, U, e_equal> {
+	static bool logAndEvaluate(const T& lhs, const U& rhs) {
+		return Equal<T, U>(lhs, rhs).logAndEvaluate();
+	}
+};
+
+template<typename T, typename U>
+struct ExprFactory<T, U, e_notEqual> {
+	static bool logAndEvaluate(const T& lhs, const U& rhs) {
+		return NotEqual<T, U>(lhs, rhs).logAndEvaluate();
+	}
+};
+
+template<typename T, typename U>
+struct ExprFactory<T, U, e_lessThan> {
+	static bool logAndEvaluate(const T& lhs, const U& rhs) {
+		return LessThan<T, U>(lhs, rhs).logAndEvaluate();
+	}
+};
+
+template<typename T, typename U>
+struct ExprFactory<T, U, e_lessThanOrEqual> {
+	static bool logAndEvaluate(const T& lhs, const U& rhs) {
+		return LessThanOrEqual<T, U>(lhs, rhs).logAndEvaluate();
+	}
+};
+
+template<typename T, typename U>
+struct ExprFactory<T, U, e_greaterThan> {
+	static bool logAndEvaluate(const T& lhs, const U& rhs) {
+		return GreaterThan<T, U>(lhs, rhs).logAndEvaluate();
+	}
+};
+
+template<typename T, typename U>
+struct ExprFactory<T, U, e_greaterThanOrEqual> {
+	static bool logAndEvaluate(const T& lhs, const U& rhs) {
+		return GreaterThanOrEqual<T, U>(lhs, rhs).logAndEvaluate();
+	}
+};
+
+template<Operator op, typename T, typename U>
+bool compare(const T& lhs, const U& rhs) {
+	return ExprFactory<T, U, op>::logAndEvaluate(lhs, rhs);
+}
+
+template<Operator op>
+bool compare(short lhs, unsigned int rhs) {
+	return compare<op>(static_cast<unsigned int>(lhs), rhs);
+}
+
+template<Operator op>
+bool compare(unsigned int lhs, short rhs) {
+	return compare<op>(lhs, static_cast<unsigned int>(rhs));
+}
+
+template<Operator op>
+bool compare(short lhs, unsigned long rhs) {
+	return compare<op>(static_cast<unsigned long>(lhs), rhs);
+}
+
+template<Operator op>
+bool compare(unsigned long lhs, short rhs) {
+	return compare<op>(lhs, static_cast<unsigned long>(rhs));
+}
+
+template<Operator op>
+bool compare(unsigned int lhs, int rhs) {
+	return compare<op>(lhs, static_cast<unsigned int>(rhs));
+}
+
+template<Operator op>
+bool compare(int lhs, unsigned int rhs) {
+	return compare<op>(static_cast<unsigned int>(lhs), rhs);
+}
+
+template<Operator op>
+bool compare(unsigned long lhs, int rhs) {
+	return compare<op>(lhs, static_cast<unsigned long>(rhs));
+}
+
+template<Operator op>
+bool compare(int lhs, unsigned long rhs) {
+	return compare<op>(static_cast<unsigned long>(lhs), rhs);
+}
+
+template<Operator op>
+bool compare(long lhs, unsigned int rhs) {
+	return compare<op>(lhs, static_cast<long>(rhs));
+}
+
+template<Operator op>
+bool compare(unsigned int lhs, long rhs) {
+	return compare<op>(static_cast<long>(lhs), rhs);
+}
+
+template<Operator op>
+bool compare(long lhs, unsigned long rhs) {
+	return compare<op>(static_cast<unsigned long>(lhs), rhs);
+}
+
+template<Operator op>
+bool compare(unsigned long lhs, long rhs) {
+	return compare<op>(lhs, static_cast<unsigned long>(rhs));
+}
+
+template<Operator op, typename T>
+bool compare(T* lhs, int rhs) {
+	return ExprFactory<T*, T*, op>::logAndEvaluate(lhs, reinterpret_cast<T*>(rhs));
+}
+
+template<Operator op, typename T>
+bool compare(int lhs, T* rhs) {
+	return ExprFactory<T*, T*, op>::logAndEvaluate(reinterpret_cast<T*>(lhs), rhs);
+}
 
 template<typename T>
 class Term {
@@ -223,11 +338,27 @@ public:
 	Term(const T& lhs) : lhs_(lhs) { }
 	template<typename U>
 	bool operator==(const U& rhs) const {
-		return Expression::logAndEvaluate(Equal<T, U>(lhs_, rhs));
+		return compare<e_equal>(lhs_, rhs);
 	}
 	template<typename U>
 	bool operator!=(const U& rhs) const {
-		return Expression::logAndEvaluate(NotEqual<T, U>(lhs_, rhs));
+		return compare<e_notEqual>(lhs_, rhs);
+	}
+	template<typename U>
+	bool operator<(const U& rhs) const {
+		return compare<e_lessThan>(lhs_, rhs);
+	}
+	template<typename U>
+	bool operator<=(const U& rhs) const {
+		return compare<e_lessThanOrEqual>(lhs_, rhs);
+	}
+	template<typename U>
+	bool operator>(const U& rhs) const {
+		return compare<e_greaterThan>(lhs_, rhs);
+	}
+	template<typename U>
+	bool operator>=(const U& rhs) const {
+		return compare<e_greaterThanOrEqual>(lhs_, rhs);
 	}
 	operator bool() const {
 		return Expression::logAndEvaluate(lhs_);
