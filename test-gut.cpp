@@ -60,16 +60,36 @@ int fnThatThrowsAnInt() {
   throw 42;
 }
 
-class LastFailure : public gut::Report {
-	std::string& what_;
+class TestReport : public gut::Report {
+	std::string& failure_;
+	std::string& eval_;
+	std::string& info_;
+	std::string& warn_;
 	// disabled!
-	LastFailure& operator=(const LastFailure&);
+	TestReport& operator=(const TestReport&);
 public:
-	LastFailure(std::string& what) : what_(what) {
+	TestReport(
+		std::string& failure,
+		std::string& eval,
+		std::string& info,
+		std::string& warn)
+	: failure_(failure)
+	, eval_(eval)
+	, info_(info)
+	, warn_(warn) {
 	}
 protected:
-	virtual void onFailure(const gut::Failure& failure) {
-		what_ = failure.what();
+	virtual void onFailure(const gut::Notice& failure) {
+		failure_ = failure.what();
+	}
+	virtual void onEval(const gut::Notice& eval) {
+		eval_ = eval.what();
+	}
+	virtual void onInfo(const gut::Notice& info) {
+		info_ = info.what();
+	}
+	virtual void onWarn(const gut::Notice& warn) {
+		warn_ = warn.what();
 	}
 };
 
@@ -102,7 +122,12 @@ public:
 int main() {
 
 	std::string lastFailure;
-	gut::Report::set(std::make_shared<LastFailure>(lastFailure));
+	std::string lastEval;
+	std::string lastInfo;
+	std::string lastWarn;
+	gut::Report::set(
+		std::make_shared<TestReport>(
+			lastFailure, lastEval, lastInfo, lastWarn));
 
 	int i1 = 1;
 	int i2 = 2;
@@ -488,5 +513,31 @@ int main() {
 	}
 
 	assert(lastFailure == "[fatal] unexpected exception \"a runtime error\" caught");
+
+	// test EVAL
+	assert(lastEval == "");
+	EVAL(i1);
+	assert(lastEval == "[info] i1 evaluates to 1");
+	EVAL((i1 + 3 * i2));
+	assert(lastEval == "[info] (i1 + 3 * i2) evaluates to 7");
+
+	// test INFO
+	assert(lastInfo == "");
+	INFO("message #1");
+	assert(lastInfo == "[info] message #1");
+	INFO("message #2");
+	assert(lastInfo == "[info] message #2");
+
+	// test WARN
+	assert(lastWarn == "");
+	WARN("message #1");
+	assert(lastWarn == "[warning] message #1");
+	WARN("message #2");
+	assert(lastWarn == "[warning] message #2");
+
+	// test FAIL
+	FAIL("user failure");
+	assert(lastFailure == "[fatal] user failure");
+
 	return 0;
 }
