@@ -1,3 +1,6 @@
+#ifndef GUT_MATH_H
+#define GUT_MATH_H
+
 #include "gut.h"
 #include <cmath>
 
@@ -13,3 +16,5 @@ gut::Boolean areAlmostEqual(double d1, double d2) {
 } // namespace num
 
 } // namespace gut
+
+#endif // GUT_MATH_H

@@ -1,5 +1,5 @@
-#ifndef COLORS_H
-#define COLORS_H
+#ifndef GUT_WINDOWS_COLORS_H
+#define GUT_WINDOWS_COLORS_H
 
 #include <iostream>
 #include <windows.h>
@@ -11,7 +11,11 @@ namespace color {
 class WindowsConsole_ {
     HANDLE handle_;
     WORD defaultAttrs_;
-    static const WORD mask_ = FOREGROUND_RED|FOREGROUND_GREEN|FOREGROUND_BLUE|FOREGROUND_INTENSITY;
+    static const WORD mask_ =
+        FOREGROUND_RED
+        | FOREGROUND_GREEN
+        | FOREGROUND_BLUE
+        | FOREGROUND_INTENSITY;
 public:
     WindowsConsole_()
      : handle_(GetStdHandle(STD_OUTPUT_HANDLE))
@@ -62,7 +66,7 @@ std::ostream& green(std::ostream& os) {
 }
 
 std::ostream& teal(std::ostream& os) {
-    setColor_(FOREGROUND_GREEN|FOREGROUND_BLUE);
+    setColor_(FOREGROUND_GREEN | FOREGROUND_BLUE);
     return os;
 }
 
@@ -72,17 +76,17 @@ std::ostream& maroon(std::ostream& os) {
 }
 
 std::ostream& purple(std::ostream& os) {
-    setColor_(FOREGROUND_RED|FOREGROUND_BLUE);
+    setColor_(FOREGROUND_RED | FOREGROUND_BLUE);
     return os;
 }
 
 std::ostream& olive(std::ostream& os) {
-    setColor_(FOREGROUND_RED|FOREGROUND_GREEN);
+    setColor_(FOREGROUND_RED | FOREGROUND_GREEN);
     return os;
 }
 
 std::ostream& silver(std::ostream& os) {
-    setColor_(FOREGROUND_RED|FOREGROUND_GREEN|FOREGROUND_BLUE);
+    setColor_(FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
     return os;
 }
 
@@ -92,37 +96,41 @@ std::ostream& gray(std::ostream& os) {
 }
 
 std::ostream& blue(std::ostream& os) {
-    setColor_(FOREGROUND_BLUE|FOREGROUND_INTENSITY);
+    setColor_(FOREGROUND_BLUE | FOREGROUND_INTENSITY);
     return os;
 }
 
 std::ostream& lime(std::ostream& os) {
-    setColor_(FOREGROUND_GREEN|FOREGROUND_INTENSITY);
+    setColor_(FOREGROUND_GREEN | FOREGROUND_INTENSITY);
     return os;
 }
 
 std::ostream& aqua(std::ostream& os) {
-    setColor_(FOREGROUND_GREEN|FOREGROUND_BLUE|FOREGROUND_INTENSITY);
+    setColor_(FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY);
     return os;
 }
 
 std::ostream& red(std::ostream& os) {
-    setColor_(FOREGROUND_RED|FOREGROUND_INTENSITY);
+    setColor_(FOREGROUND_RED | FOREGROUND_INTENSITY);
     return os;
 }
 
 std::ostream& fuchsia(std::ostream& os) {
-    setColor_(FOREGROUND_RED|FOREGROUND_BLUE|FOREGROUND_INTENSITY);
+    setColor_(FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_INTENSITY);
     return os;
 }
 
 std::ostream& yellow(std::ostream& os) {
-    setColor_(FOREGROUND_RED|FOREGROUND_GREEN|FOREGROUND_INTENSITY);
+    setColor_(FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY);
     return os;
 }
 
 std::ostream& white(std::ostream& os) {
-    setColor_(FOREGROUND_RED|FOREGROUND_GREEN|FOREGROUND_BLUE|FOREGROUND_INTENSITY);
+    setColor_(
+        FOREGROUND_RED
+        | FOREGROUND_GREEN
+        | FOREGROUND_BLUE
+        | FOREGROUND_INTENSITY);
     return os;
 }
 
@@ -135,4 +143,4 @@ std::ostream& reset(std::ostream& os) {
 
 } // namespace gut
 
-#endif // COLORS_H
+#endif // GUT_WINDOWS_COLORS_H

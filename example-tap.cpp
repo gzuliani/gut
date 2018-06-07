@@ -1,20 +1,17 @@
 #include "gut.h"
+
 #include <algorithm>
 #include <stdexcept>
 #include <vector>
 
-#include "gut-tap.h"
+#include "tap.h"
 GUT_CUSTOM_REPORT(gut::TapReport())
 
 class RecentlyUsedList {
     std::vector<std::string> items_;
 public:
-    bool empty() const {
-        return items_.empty();
-    }
-    size_t size() const {
-        return items_.size();
-    }
+    bool empty() const { return items_.empty(); }
+    size_t size() const { return items_.size(); }
     std::string operator[](size_t index) const {
         if (index >= size())
             throw std::out_of_range("invalid subscript");
