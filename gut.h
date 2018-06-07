@@ -402,4 +402,17 @@ public:
 			std::cout << __FILE__ << "(" << __LINE__ << "): " << #expr_ << " evaluates to " << Expression::last << std::endl; \
 	} while (0)
 
+#define THROWS(expr_, exception_) \
+	do { \
+		try { \
+			(void)(expr_); \
+			std::cout << __FILE__ << "(" << __LINE__ << "): " << #expr_ << " did not throw" << std::endl; \
+		} catch(const exception_&) { \
+		} catch(const std::exception& e_) { \
+			std::cout << __FILE__ << "(" << __LINE__ << "): " << #expr_ << " threw the unexpected exception \"" << e_.what() << "\"" << std::endl; \
+		} catch(...) { \
+			std::cout << __FILE__ << "(" << __LINE__ << "): " << #expr_ << " threw an unexpected unknown exception" << std::endl; \
+		} \
+	} while (0)
+
 #endif // GUT_H

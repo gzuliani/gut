@@ -1,4 +1,5 @@
 #include "gut.h"
+#include <stdexcept>
 
 bool f() {
 	return false;
@@ -43,6 +44,17 @@ public:
 
 bool isOdd(int i) {
 	return i % 2;
+}
+
+void fnThatNotThrows() {
+}
+
+int fnThatThrowsARuntimeError() {
+  throw std::runtime_error("a runtime error");
+}
+
+int fnThatThrowsAnInt() {
+  throw 42;
 }
 
 int main() {
@@ -213,7 +225,20 @@ int main() {
 	int a[10];
 	int* pa1 = a;
 	int* pa2 = a + 3;
-
 	CHECK(pa1 >= pa2);
+
+	// exceptions
+	try {
+		// THROWS(f(), std::exception);
+		THROWS(fnThatNotThrows(), std::runtime_error);
+		THROWS(fnThatThrowsARuntimeError(), std::logic_error);
+		THROWS(fnThatThrowsAnInt(), std::runtime_error);
+		CHECK(fnThatThrowsARuntimeError() == 1);
+		CHECK(2 == 1); // won't execute
+	} catch(const std::exception& e) {
+		std::cout << "unexpected exception \"" << e.what() << "\" caught" << std::endl;
+	} catch(...) {
+		std::cout << "unexpected unknown exception caught" << std::endl;
+	}
 	return 0;
 }
