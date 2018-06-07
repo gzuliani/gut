@@ -9,16 +9,16 @@ bool f() {
 }
 
 class Object {
-    int m_id;
+    int id_;
 public:
-    Object(int id) : m_id(id) {}
-    Object(const Object& co) : m_id(co.m_id) {}
+    Object(int id) : id_(id) {}
+    Object(const Object& co) : id_(co.id_) {}
     Object& operator=(const Object& co) {
-        m_id = co.m_id;
+        id_ = co.id_;
         return *this;
     }
-    bool operator==(const Object& co) const { return m_id == co.m_id; }
-    int GetId() const { return m_id; }
+    bool operator==(const Object& co) const { return id_ == co.id_; }
+    int GetId() const { return id_; }
 };
 
 std::ostream& operator<<(std::ostream& os, const Object& co) {
@@ -40,11 +40,11 @@ std::ostream& operator<<(std::ostream& os, const NonCopiableObject& nco) {
 }
 
 class NonSerializableObject {
-    int m_id;
+    int id_;
 public:
-    NonSerializableObject(int id) : m_id(id) {}
+    NonSerializableObject(int id) : id_(id) {}
     bool operator==(const NonSerializableObject& co) const {
-        return m_id == co.m_id;
+        return id_ == co.id_;
     }
 };
 
@@ -56,11 +56,25 @@ void fnThatNotThrows() {
 }
 
 int fnThatThrowsARuntimeError() {
-  throw std::runtime_error("a runtime error");
+    throw std::runtime_error("a runtime error");
 }
 
 int fnThatThrowsAnInt() {
-  throw 42;
+    throw 42;
+}
+
+struct Point {
+    int x_;
+    int y_;
+    Point(int x, int y) : x_(x), y_(y) {
+        if (x < 0 || y < 0)
+            throw std::runtime_error("point out of domain");
+    }
+    bool operator==(const Point& p) const { return x_ == p.x_ && y_ == p.y_; }
+};
+
+std::ostream& operator<<(std::ostream& os, const Point& pt) {
+	return os << "(" << pt.x_ << ", " << pt.y_ << ")"; 
 }
 
 class TestReport {
@@ -602,6 +616,25 @@ int main() {
     assert(lastFailure == "[error] l != Level::e_low evaluates to Level::e_low != Level::e_low");
     CHECK(l == Level::e_high);
     assert(lastFailure == "[error] l == Level::e_high evaluates to Level::e_low == Level::e_high");
+
+    // initialization lists
+    Point pt(1, 2);
+
+    CHECK(pt == Point(1, 2));
+    CHECK(pt == Point{1, 2});
+
+    REQUIRE(pt == Point(1, 2));
+    REQUIRE(pt == Point{1, 2});
+
+    THROWS(Point{-1, 2}, std::runtime_error);
+    THROWS_ANYTHING(Point{-1, 2});
+    THROWS_WITH_MESSAGE(Point{-1, 2}, std::runtime_error, "point out of domain");
+    THROWS_NOTHING(Point{1, 2});
+
+    REQUIRE_THROWS(Point{-1, 2}, std::runtime_error);
+    REQUIRE_THROWS_ANYTHING(Point{-1, 2});
+    REQUIRE_THROWS_WITH_MESSAGE(Point{-1, 2}, std::runtime_error, "point out of domain");
+    REQUIRE_THROWS_NOTHING(Point{1, 2});
 
     return 0;
 }

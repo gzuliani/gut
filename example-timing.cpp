@@ -1,4 +1,4 @@
-#include "gut/gut.h"
+#include "gut.h"
 
 #include <thread>
 

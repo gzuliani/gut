@@ -28,6 +28,7 @@
 
 #include "colors.h"
 #include "debugger.h"
+#include "rotate.h"
 #include "timing.h"
 
 #define GUT_INT_BASE Dec
@@ -1136,76 +1137,82 @@ Listener theListener = Listener(DefaultReport());
 
 #endif
 
-#define CHECK(expr_) \
+#define CHECK(...) \
     GUT_BEGIN \
-        if (!(gut::Capture()->*expr_)) { \
+        if (!(gut::Capture()->*__VA_ARGS__)) { \
             GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::CheckFailure( \
-                    #expr_, gut::Expression::last, __FILE__, __LINE__)); \
+                    #__VA_ARGS__, gut::Expression::last, __FILE__, __LINE__)); \
         } \
     GUT_END
 
-#define THROWS_(expr_, exception_, prefix_, abort_) \
+#define THROWS_(exception_, prefix_, abort_, ...) \
     GUT_BEGIN \
         bool catched_ = false; \
         try { \
-            (void)(expr_); \
+            (void)(__VA_ARGS__); \
             GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::prefix_ ## NoThrowFailure( \
-                    #expr_, __FILE__, __LINE__)); \
+                    #__VA_ARGS__, __FILE__, __LINE__)); \
         } catch(const exception_&) { \
             catched_ = true; \
         } catch(const std::exception& e_) { \
             GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::prefix_ ## WrongTypedExceptionFailure( \
-                    #expr_, e_, __FILE__, __LINE__)); \
+                    #__VA_ARGS__, e_, __FILE__, __LINE__)); \
         } catch(...) { \
             GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::prefix_ ## WrongExceptionFailure( \
-                    #expr_, __FILE__, __LINE__)); \
+                    #__VA_ARGS__, __FILE__, __LINE__)); \
         } \
         if (!catched_ && abort_) \
             throw gut::AbortTest(); \
     GUT_END
 
-#define THROWS(expr_, exception_) \
-    THROWS_(expr_, exception_, , false)
+#define THROWS__(...) \
+    THROWS_(__VA_ARGS__)
 
-#define REQUIRE_THROWS(expr_, exception_) \
-    THROWS_(expr_, exception_, Fatal, true)
+#define THROWS(...) \
+    THROWS__( \
+        GUT_ROTATE( \
+            GUT_ROTATE( \
+                GUT_ROTATE(__VA_ARGS__, , false))))
 
-#define REQUIRE(expr_) \
+#define REQUIRE_THROWS(...) \
+    THROWS__(GUT_ROTATE(GUT_ROTATE(GUT_ROTATE(__VA_ARGS__, Fatal, true))))
+
+#define REQUIRE(...) \
     GUT_BEGIN \
-        if (!(gut::Capture()->*expr_)) { \
+        if (!(gut::Capture()->*__VA_ARGS__)) { \
             GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::RequireFailure( \
-                    #expr_, gut::Expression::last, __FILE__, __LINE__)); \
+                    #__VA_ARGS__, gut::Expression::last, __FILE__, __LINE__)); \
             throw gut::AbortTest(); \
         } \
     GUT_END
 
-#define THROWS_ANYTHING(expr_) \
+#define THROWS_ANYTHING(...) \
     GUT_BEGIN \
         try { \
-            (void)(expr_); \
+            (void)(__VA_ARGS__); \
             GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::NoThrowFailure( \
-                    #expr_, __FILE__, __LINE__)); \
+                    #__VA_ARGS__, __FILE__, __LINE__)); \
         } catch(...) { \
         } \
     GUT_END
 
-#define REQUIRE_THROWS_ANYTHING(expr_) \
+#define REQUIRE_THROWS_ANYTHING(...) \
     GUT_BEGIN \
         bool threw_ = false; \
         try { \
-            (void)(expr_); \
+            (void)(__VA_ARGS__); \
         } catch(...) { \
             threw_ = true; \
         } \
@@ -1213,53 +1220,64 @@ Listener theListener = Listener(DefaultReport());
             GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::FatalNoThrowFailure( \
-                    #expr_, __FILE__, __LINE__)); \
+                    #__VA_ARGS__, __FILE__, __LINE__)); \
             throw gut::AbortTest(); \
         } \
     GUT_END
 
-#define THROWS_WITH_MESSAGE_(expr_, exception_, what_, prefix_, abort_) \
+#define THROWS_WITH_MESSAGE_(exception_, what_, prefix_, abort_, ...) \
     GUT_BEGIN \
         bool catched_ = false; \
         try { \
-            (void)(expr_); \
+            (void)(__VA_ARGS__); \
             GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::prefix_ ## NoThrowFailure( \
-                    #expr_, __FILE__, __LINE__)); \
+                    #__VA_ARGS__, __FILE__, __LINE__)); \
         } catch(const exception_& e_) { \
             if (strcmp(e_.what(), static_cast<const char*>(what_)) != 0) { \
                 GUT_DEBUG_BREAK \
                 gut::theListener.failure( \
                     gut::prefix_ ## WrongExceptionMessageFailure( \
-                        #expr_, e_.what(), what_, __FILE__, __LINE__)); \
+                        #__VA_ARGS__, e_.what(), what_, __FILE__, __LINE__)); \
             } else \
                 catched_ = true; \
         } catch(const std::exception& e_) { \
             GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::prefix_ ## WrongTypedExceptionFailure( \
-                    #expr_, e_, __FILE__, __LINE__)); \
+                    #__VA_ARGS__, e_, __FILE__, __LINE__)); \
         } catch(...) { \
             GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::prefix_ ## WrongExceptionFailure( \
-                    #expr_, __FILE__, __LINE__)); \
+                    #__VA_ARGS__, __FILE__, __LINE__)); \
         } \
         if (!catched_ && abort_) \
             throw gut::AbortTest(); \
     GUT_END
 
-#define THROWS_WITH_MESSAGE(expr_, exception_, what_) \
-    THROWS_WITH_MESSAGE_(expr_, exception_, what_, , false)
+#define THROWS_WITH_MESSAGE__(...) \
+    THROWS_WITH_MESSAGE_(__VA_ARGS__)
 
-#define REQUIRE_THROWS_WITH_MESSAGE(expr_, exception_, what_) \
-    THROWS_WITH_MESSAGE_(expr_, exception_, what_, Fatal, true)
+#define THROWS_WITH_MESSAGE(...) \
+    THROWS_WITH_MESSAGE__( \
+        GUT_ROTATE( \
+            GUT_ROTATE( \
+                GUT_ROTATE( \
+                    GUT_ROTATE(__VA_ARGS__, , false)))))
 
-#define THROWS_NOTHING(expr_) \
+#define REQUIRE_THROWS_WITH_MESSAGE(...) \
+    THROWS_WITH_MESSAGE__( \
+        GUT_ROTATE( \
+            GUT_ROTATE( \
+                GUT_ROTATE( \
+                    GUT_ROTATE(__VA_ARGS__, Fatal, true)))))
+
+#define THROWS_NOTHING(...) \
     GUT_BEGIN \
         try { \
-            (void)(expr_); \
+            (void)(__VA_ARGS__); \
         } catch(const std::exception& e_) { \
             GUT_DEBUG_BREAK \
             gut::theListener.failure( \
@@ -1273,11 +1291,11 @@ Listener theListener = Listener(DefaultReport());
         } \
     GUT_END
 
-#define REQUIRE_THROWS_NOTHING(expr_) \
+#define REQUIRE_THROWS_NOTHING(...) \
     GUT_BEGIN \
         bool threw_ = true; \
         try { \
-            (void)(expr_); \
+            (void)(__VA_ARGS__); \
             threw_ = false; \
         } catch(const std::exception& e_) { \
             GUT_DEBUG_BREAK \
@@ -1335,10 +1353,10 @@ int main() {
         name_, &GUT_CONCAT(test_, __LINE__)); \
     static void GUT_ID(test_)()
 
-#define EVAL(expr_) \
+#define EVAL(...) \
     GUT_BEGIN \
         gut::theListener.info( \
-            gut::Eval(#expr_, expr_, __FILE__, __LINE__)); \
+            gut::Eval(#__VA_ARGS__, __VA_ARGS__, __FILE__, __LINE__)); \
     GUT_END
 
 #define INFO(message_) \
@@ -1355,7 +1373,7 @@ int main() {
 
 #define FAIL(message_) \
     GUT_BEGIN \
-		GUT_DEBUG_BREAK \
+        GUT_DEBUG_BREAK \
         gut::theListener.failure( \
             gut::UserFailure(message_, __FILE__, __LINE__)); \
     GUT_END
