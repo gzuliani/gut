@@ -3,7 +3,7 @@
 
 #define GUT_HAS_CHRONO
 
-#if (_MSC_VER<=1600) // VC10
+#if defined (_MSC_VER) && (_MSC_VER <= 1600)
 #undef GUT_HAS_CHRONO
 #endif
 
@@ -525,12 +525,6 @@ public:
     }
 };
 
-struct Location {
-    const char* file;
-    int line;
-    Location(const char* file_, int line_) : file(file_), line(line_) { }
-};
-
 struct AbortTest { };
 
 class AbortSuite {
@@ -554,7 +548,13 @@ public:
 
 bool FailFast::enabled_ = false;
 
-#define ENABLE_FAILFAST gut::FailFast failFast_;
+#define GUT_ENABLE_FAILFAST gut::FailFast failFast_;
+
+struct Location {
+    const char* file;
+    int line;
+    Location(const char* file_, int line_) : file(file_), line(line_) { }
+};
 
 #define PICK_NAME(id_) e_ ## id_,
 #define PICK_LABEL(id_) #id_,
@@ -568,7 +568,7 @@ bool FailFast::enabled_ = false;
 enum Level { LEVELS(PICK_NAME) };
 static std::string level_name[] = { LEVELS(PICK_LABEL) };
 
-// no virtual methods here - see DefaultReport.log_
+// no virtual methods here - see DefaultReport
 class Notice {
     Level level_;
     Location location_;
@@ -580,16 +580,14 @@ public:
     Notice(const Notice& notice) : level_(notice.level_), location_(notice.location_) {
         content_ << notice.content_.str();
     }
+    Location location() const {
+        return location_;
+    }
     Level level() const {
         return level_;
     }
     std::string what() const {
         return content_.str();
-    }
-    std::string toString() const {
-        std::ostringstream ss;
-        ss << location_.file << "(" << location_.line << ") : " << what();
-        return ss.str();
     }
 protected:
     std::ostream& content() {
@@ -691,8 +689,8 @@ struct FatalUnknownExceptionFailure : public Fatal {
 
 struct Eval : public Notice {
     template <typename T>
-    Eval(const char* expression, const T& value, const char* file, int line) : Notice(e_info, file, line) {
-        content() << expression << " evaluates to " << value;
+    Eval(const char* expr, const T& value, const char* file, int line) : Notice(e_info, file, line) {
+        content() << expr << " evaluates to " << value;
     }
 };
 
@@ -746,175 +744,182 @@ public:
 std::vector<Test> Suite::tests_;
 
 #ifdef GUT_HAS_CHRONO
-struct Clock {
+class Timer {
     std::chrono::steady_clock::time_point start_;
-    Clock() : start_(std::chrono::steady_clock::now()) { }
+public:
+    Timer() { reset (); }
+    void reset() { start_ = std::chrono::steady_clock::now(); }
     double elapsedTime() {
         return std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - start_).count() / 1000.;
     }
 };
 #else
-struct Clock {
+class Timer {
     clock_t start_;
-    Clock() { start_ = clock(); }
+public:
+    Timer() { reset(); }
+    void reset() { start_ = clock(); }
     double elapsedTime() {
         return static_cast<double>(clock() - start_) / CLOCKS_PER_SEC;
     }
 };
 #endif
 
-class Report {
+class Listener {
+    size_t testCount_;
+    int failedTestCount_;
+    size_t totalFailureCount_;
+    bool didTestFail_;
+    Timer testTimer_;
+    Timer globalTimer_;
 public:
     template<class T>
-    Report(T report) : report_ (std::make_shared<Model<T>>(std::move(report))) { }
-    void start() { report_->onStart(); }
-    void end() { report_->onEnd(); }
-    void startTest(const std::string& name) { report_->onStartTest(name); }
-    void endTest() { report_->onEndTest(); }
+    Listener(T report) : report_(std::make_shared<Model<T>>(std::move(report))) { }
+    int failedTestCount() const { return failedTestCount_; }
+    void start() {
+        testCount_ = 0;
+        failedTestCount_ = 0;
+        totalFailureCount_ = 0;
+        globalTimer_.reset();
+        report_->start();
+    }
+    void end() {
+        report_->end(
+            testCount_,
+            failedTestCount_,   
+            totalFailureCount_,
+            globalTimer_.elapsedTime());
+    }
+    void startTest(const std::string& name) {
+        ++testCount_;
+        didTestFail_ = false;
+        testTimer_.reset();
+        report_->startTest(name);
+    }
+    void endTest() {
+        if (didTestFail_)
+            ++failedTestCount_;
+        report_->endTest(didTestFail_, globalTimer_.elapsedTime());
+    }
     void failure(const Notice& failure) {
-        report_->onFailure(failure);
+        didTestFail_ = true;
+        ++totalFailureCount_;
+        report_->failure(
+            failure.location().file,
+            failure.location().line,
+            failure.level(),
+            failure.what());
         if (FailFast::enabled())
             throw AbortSuite();
     }
-    void eval(const Notice& eval) { report_->onEval(eval); }
-    void info(const Notice& info) { report_->onInfo(info); }
-    void warn(const Notice& warn) { report_->onWarn(warn); }
-    void quit(const std::string& reason) { report_->onQuit(reason); }
-    int failedTestCount() { return report_->failedTestCount(); }
+    void info(const Notice& info) {
+        report_->info(
+            info.location().file,
+            info.location().line,
+            info.level(),
+            info.what());
+    }
+    void quit(const std::string& reason) { report_->quit(reason); }
 private:
     struct Concept {
         virtual ~Concept() { }
-        virtual void onStart() = 0;
-        virtual void onEnd() = 0;
-        virtual void onStartTest(const std::string& /*name*/) = 0;
-        virtual void onEndTest() = 0;
-        virtual void onFailure(const Notice& /*failure*/) = 0;
-        virtual void onEval(const Notice& /*eval*/) = 0;
-        virtual void onInfo(const Notice& /*info*/) = 0;
-        virtual void onWarn(const Notice& /*warn*/) = 0;
-        virtual void onQuit(const std::string& /*reason*/) = 0;
-        virtual int failedTestCount() = 0;
+        virtual void start() = 0;
+        virtual void end(int /*tests*/, int /*failedTests*/, int /*failures*/, double /*duration*/) = 0;
+        virtual void startTest(const std::string& /*name*/) = 0;
+        virtual void endTest(bool /*failed*/, double /*duration*/) = 0;
+        virtual void failure(const char* /*file*/, int /*line*/, int /*level*/, const std::string& /*what*/) = 0;
+        virtual void info(const char* /*file*/, int /*line*/, int /*level*/, const std::string& /*what*/) = 0;
+        virtual void quit(const std::string& /*reason*/) = 0;
     };
 
     template<class T>
     struct Model : public Concept {
         T report_;
         Model(T report) : report_(std::move(report)) { }
-        virtual void onStart() { report_.onStart(); }
-        virtual void onEnd() { report_.onEnd(); }
-        virtual void onStartTest(const std::string& name) { report_.onStartTest(name); }
-        virtual void onEndTest() { report_.onEndTest(); }
-        virtual void onFailure(const Notice& failure) { report_.onFailure(failure); }
-        virtual void onEval(const Notice& eval) { report_.onEval(eval); }
-        virtual void onInfo(const Notice& info) { report_.onInfo(info); }
-        virtual void onWarn(const Notice& warn) { report_.onWarn(warn); }
-        virtual void onQuit(const std::string& reason) { report_.onQuit(reason); }
-        virtual int failedTestCount() { return report_.failedTestCount(); }
+        virtual void start() override { report_.start(); }
+        virtual void end(int tests, int failedTests, int failures, double duration) override { report_.end(tests, failedTests, failures, duration); }
+        virtual void startTest(const std::string& name) override { report_.startTest(name); }
+        virtual void endTest(bool failed, double duration) override { report_.endTest(failed, duration); }
+        virtual void failure(const char* file, int line, int level, const std::string& what) override { report_.failure(file, line, level, what); }
+        virtual void info(const char* file, int line, int level, const std::string& what) override { report_.info(file, line, level, what); }
+        virtual void quit(const std::string& reason) override { report_.quit(reason); }
     };
 
   std::shared_ptr<Concept> report_;
 };
 
-class theReport {
-    static Report report_;
-public:
-    static void set(Report report) { report_ = report; }
-    static void start() { report_.start(); }
-    static void end() { report_.end(); }
-    static void startTest(const std::string& name) { report_.startTest(name); }
-    static void endTest() { report_.endTest(); }
-    static void failure(const Notice& failure) { report_.failure(failure); }
-    static void eval(const Notice& eval) { report_.eval(eval); }
-    static void info(const Notice& info) { report_.info(info); }
-    static void warn(const Notice& warn) { report_.warn(warn); }
-    static void quit(const std::string& report) { report_.quit(report); }
-    static int failedTestCount() { return report_.failedTestCount(); }
-};
-
 class DefaultReport {
-    size_t tests_;
-    bool testFailed_;
-    size_t totalFailures_;
-    size_t failedTests_;
-    std::vector<Notice> log_;
-    Clock clock_;
+    std::ostream& os_;
+    bool testAlreadyFailed_;
+    std::vector<std::pair<int, std::string>> log_;
 public:
-    int failedTestCount() const {
-        return static_cast<int>(failedTests_);
-    }
-    void onStart() {
-        tests_ = 0;
-        failedTests_ = 0;
-        std::cout << "Test suite started..." << std::endl;
-    }
-    void onEnd() {
-        std::cout << "Ran " << tests_ << " test(s) in " << clock_.elapsedTime() << "s." << std::endl;
-        if (failedTests_ == 0)
-            std::cout << color::lime << "OK - all tests passed." << color::reset << std::endl;
+    DefaultReport(std::ostream& os = std::cout) : os_(os) { }
+    void start() { os_ << "Test suite started..." << std::endl; }
+    void end(int tests, int failedTests, int failures, double duration) {
+        os_ << "Ran " << tests << " test(s) in " << std::fixed << std::setprecision(0) << duration * 1000. << " ms." << std::endl;
+        if (failedTests == 0)
+            os_ << color::lime << "OK - all tests passed." << color::reset << std::endl;
         else
-            std::cout << color::red << "FAILED - " << totalFailures_ << " failure(s) in " << failedTests_ << " test(s)." << color::reset << std::endl;
+            os_ << color::red << "FAILED - " << failures << " failure(s) in " << failedTests << " test(s)." << color::reset << std::endl;
     }
-    void onStartTest(const std::string& name) {
-        ++tests_;
-        testFailed_ = false;;
-        std::cout << name << ": ";
+    void startTest(const std::string& name) {
+        testAlreadyFailed_ = false;
+        os_ << name << ": ";
     }
-    void onEndTest() {
-        if (!testFailed_) {
-            std::cout << "OK" << std::endl;
-            flushLog(e_warning);
+    void endTest(bool failed, double /*duration*/) {
+        if (!failed) {
+            os_ << "OK" << std::endl;
+            flush(e_warning);
         }
         else
-            testFailed();
+            flush(e_info);
         clear();
     }
-    void onFailure(const Notice& failure) {
-        if (!testFailed_)
-            std::cout << "FAILED" << std::endl;
-        log_.push_back(failure);
-        ++totalFailures_;
-        testFailed_ = true;
+    void failure(const char* file, int line, int level, const std::string& what) {
+        if (!testAlreadyFailed_) {
+            testAlreadyFailed_ = true;
+            os_ << "FAILED" << std::endl;
+        }
+        append(file, line, level, what);
     }
-    void onEval(const Notice& eval) {
-        log_.push_back(eval);
+    void info(const char* file, int line, int level, const std::string& what) {
+        append(file, line, level, what);
     }
-    void onInfo(const Notice& info) {
-        log_.push_back(info);
+    void quit(const std::string& /*reason*/) {
+        flush(e_info);
     }
-    void onWarn(const Notice& warn) {
-        log_.push_back(warn);
+protected:
+    void append(const char* file, int line, int level, const std::string& what) {
+        std::ostringstream oss;
+        oss << file << "(" << line << ") : " << what;
+        log_.push_back(std::make_pair(level, oss.str()));
     }
-    void onQuit(const std::string& /*reason*/) {
-        testFailed();
-    }
-    void testFailed() {
-        ++failedTests_;
-        flushLog(e_info);
-    }
-    void flushLog(Level minLevel) {
-        for (auto notice : log_)
-            if (notice.level() >= minLevel)
-                std::cout << " " << notice.toString() << std::endl;
+    void flush(Level minLevel) {
+        for (auto entry : log_)
+            if (entry.first >= minLevel)
+                os_ << " " << entry.second << std::endl;
     }
     void clear() {
         log_.clear();
     }
 };
 
-Report theReport::report_ = Report(DefaultReport());
+Listener theListener = Listener(DefaultReport());
 
 } // namespace gut
 
-#define GUT_ENABLE_REPORT(name_) \
-    static struct CustomReport { \
-        CustomReport() { gut::theReport::set(name_()); } \
-    } customReport_;
+#define GUT_CUSTOM_REPORT(report_) \
+    static struct ListenerWithCustomReport { \
+        ListenerWithCustomReport() { \
+            gut::theListener = gut::Listener(report_); \
+        } \
+    } aCustomListener_;
 
 #define CHECK(expr_) \
     do { \
         if (!(gut::Capture()->*expr_)) \
-            gut::theReport::failure(gut::CheckFailure(#expr_, gut::Expression::last, __FILE__, __LINE__)); \
+            gut::theListener.failure(gut::CheckFailure(#expr_, gut::Expression::last, __FILE__, __LINE__)); \
     } while (0)
 
 #define THROWS_(expr_, exception_, prefix_, abort_) \
@@ -922,13 +927,13 @@ Report theReport::report_ = Report(DefaultReport());
         bool catched_ = false; \
         try { \
             (void)(expr_); \
-            gut::theReport::failure(gut::prefix_ ## NoThrowFailure(#expr_, __FILE__, __LINE__)); \
+            gut::theListener.failure(gut::prefix_ ## NoThrowFailure(#expr_, __FILE__, __LINE__)); \
         } catch(const exception_&) { \
             catched_ = true; \
         } catch(const std::exception& e_) { \
-            gut::theReport::failure(gut::prefix_ ## WrongTypedExceptionFailure(#expr_, e_, __FILE__, __LINE__)); \
+            gut::theListener.failure(gut::prefix_ ## WrongTypedExceptionFailure(#expr_, e_, __FILE__, __LINE__)); \
         } catch(...) { \
-            gut::theReport::failure(gut::prefix_ ## WrongExceptionFailure(#expr_, __FILE__, __LINE__)); \
+            gut::theListener.failure(gut::prefix_ ## WrongExceptionFailure(#expr_, __FILE__, __LINE__)); \
         } \
         if (!catched_ && abort_) \
             throw gut::AbortTest(); \
@@ -943,7 +948,7 @@ Report theReport::report_ = Report(DefaultReport());
 #define REQUIRE(expr_) \
     do { \
         if (!(gut::Capture()->*expr_)) { \
-            gut::theReport::failure(gut::RequireFailure(#expr_, gut::Expression::last, __FILE__, __LINE__)); \
+            gut::theListener.failure(gut::RequireFailure(#expr_, gut::Expression::last, __FILE__, __LINE__)); \
             throw gut::AbortTest();\
         } \
     } while (0)
@@ -952,7 +957,7 @@ Report theReport::report_ = Report(DefaultReport());
     do { \
         try { \
             (void)(expr_); \
-            gut::theReport::failure(gut::NoThrowFailure(#expr_, __FILE__, __LINE__)); \
+            gut::theListener.failure(gut::NoThrowFailure(#expr_, __FILE__, __LINE__)); \
         } catch(...) { \
         } \
     } while (0)
@@ -966,7 +971,7 @@ Report theReport::report_ = Report(DefaultReport());
             threw_ = true; \
         } \
         if (!threw_) { \
-            gut::theReport::failure(gut::FatalNoThrowFailure(#expr_, __FILE__, __LINE__)); \
+            gut::theListener.failure(gut::FatalNoThrowFailure(#expr_, __FILE__, __LINE__)); \
             throw gut::AbortTest(); \
         } \
     } while (0)
@@ -976,16 +981,16 @@ Report theReport::report_ = Report(DefaultReport());
         bool catched_ = false; \
         try { \
             (void)(expr_); \
-            gut::theReport::failure(gut::prefix_ ## NoThrowFailure(#expr_, __FILE__, __LINE__)); \
+            gut::theListener.failure(gut::prefix_ ## NoThrowFailure(#expr_, __FILE__, __LINE__)); \
         } catch(const exception_& e_) { \
             if (strcmp(e_.what(), static_cast<const char*>(what_)) != 0) \
-                gut::theReport::failure(gut::prefix_ ## WrongExceptionMessageFailure(#expr_, e_.what(), what_, __FILE__, __LINE__)); \
+                gut::theListener.failure(gut::prefix_ ## WrongExceptionMessageFailure(#expr_, e_.what(), what_, __FILE__, __LINE__)); \
             else \
                 catched_ = true; \
         } catch(const std::exception& e_) { \
-            gut::theReport::failure(gut::prefix_ ## WrongTypedExceptionFailure(#expr_, e_, __FILE__, __LINE__)); \
+            gut::theListener.failure(gut::prefix_ ## WrongTypedExceptionFailure(#expr_, e_, __FILE__, __LINE__)); \
         } catch(...) { \
-            gut::theReport::failure(gut::prefix_ ## WrongExceptionFailure(#expr_, __FILE__, __LINE__)); \
+            gut::theListener.failure(gut::prefix_ ## WrongExceptionFailure(#expr_, __FILE__, __LINE__)); \
         } \
         if (!catched_ && abort_) \
             throw gut::AbortTest(); \
@@ -1002,9 +1007,9 @@ Report theReport::report_ = Report(DefaultReport());
         try { \
             (void)(expr_); \
         } catch(const std::exception& e_) { \
-            gut::theReport::failure(gut::UnexpectedExceptionFailure(e_, __FILE__, __LINE__)); \
+            gut::theListener.failure(gut::UnexpectedExceptionFailure(e_, __FILE__, __LINE__)); \
         } catch(...) { \
-            gut::theReport::failure(gut::UnknownExceptionFailure(__FILE__, __LINE__)); \
+            gut::theListener.failure(gut::UnknownExceptionFailure(__FILE__, __LINE__)); \
         } \
     } while (0)
 
@@ -1015,33 +1020,33 @@ Report theReport::report_ = Report(DefaultReport());
             (void)(expr_); \
             threw_ = false; \
         } catch(const std::exception& e_) { \
-            gut::theReport::failure(gut::FatalUnexpectedExceptionFailure(e_, __FILE__, __LINE__)); \
+            gut::theListener.failure(gut::FatalUnexpectedExceptionFailure(e_, __FILE__, __LINE__)); \
         } catch(...) { \
-            gut::theReport::failure(gut::FatalUnknownExceptionFailure(__FILE__, __LINE__)); \
+            gut::theListener.failure(gut::FatalUnknownExceptionFailure(__FILE__, __LINE__)); \
         } \
         if (threw_) \
             throw gut::AbortTest(); \
     } while (0)
 
 int runTests_() {
-    gut::theReport::start();
+    gut::theListener.start();
     for (auto test : gut::Suite::tests()) {
-        gut::theReport::startTest(test.name());
+        gut::theListener.startTest(test.name());
         try {
             test.run();
         } catch(const gut::AbortSuite& e) {
-            gut::theReport::quit(e.reason());
+            gut::theListener.quit(e.reason());
             break;
         } catch(const gut::AbortTest&) {
         } catch(const std::exception& e_) {
-            gut::theReport::failure(gut::FatalUnexpectedExceptionFailure(e_, __FILE__, __LINE__));
+            gut::theListener.failure(gut::FatalUnexpectedExceptionFailure(e_, __FILE__, __LINE__));
         } catch(...) {
-            gut::theReport::failure(gut::FatalUnknownExceptionFailure(__FILE__, __LINE__));
+            gut::theListener.failure(gut::FatalUnknownExceptionFailure(__FILE__, __LINE__));
         }
-        gut::theReport::endTest();
+        gut::theListener.endTest();
     }
-    gut::theReport::end();
-    return gut::theReport::failedTestCount();
+    gut::theListener.end();
+    return gut::theListener.failedTestCount();
 }
 
 #ifndef GUT_CUSTOM_MAIN
@@ -1059,22 +1064,22 @@ int main() {
 
 #define EVAL(expr_) \
     do { \
-        gut::theReport::eval(gut::Eval(#expr_, expr_, __FILE__, __LINE__)); \
+        gut::theListener.info(gut::Eval(#expr_, expr_, __FILE__, __LINE__)); \
     } while (0)
 
 #define INFO(message_) \
     do { \
-        gut::theReport::info(gut::Info(message_, __FILE__, __LINE__)); \
+        gut::theListener.info(gut::Info(message_, __FILE__, __LINE__)); \
     } while (0)
 
 #define WARN(message_) \
     do { \
-        gut::theReport::warn(gut::Warn(message_, __FILE__, __LINE__)); \
+        gut::theListener.info(gut::Warn(message_, __FILE__, __LINE__)); \
     } while (0)
 
 #define FAIL(message_) \
     do { \
-        gut::theReport::failure(gut::UserFailure(message_, __FILE__, __LINE__)); \
+        gut::theListener.failure(gut::UserFailure(message_, __FILE__, __LINE__)); \
     } while (0)
 
 #endif // GUT_H

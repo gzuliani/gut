@@ -3,6 +3,9 @@
 #include <stdexcept>
 #include <vector>
 
+#include "gut-tap.h"
+GUT_CUSTOM_REPORT(gut::TapReport())
+
 class RecentlyUsedList {
     std::vector<std::string> items_;
 public:
@@ -73,4 +76,26 @@ TEST("Out of range indexing throws exception") {
     aListWithOneElement.insert("one");
 
     THROWS(aListWithOneElement[1], std::out_of_range);
+}
+
+TODO("Empty strings are ignored", "not yet implemented") {
+    RecentlyUsedList aList;
+    aList.insert("");
+
+    CHECK(aList.empty());
+}
+
+SKIP("One trillion insertions are ok", "too slow!") {
+    RecentlyUsedList aList;
+    for (int i = 0; i < 1000000; ++i)
+        for (int j = 0; j < 1000000; ++j)
+            for (int k = 0; k < 1000000; ++k)
+                aList.insert("one");
+
+    CHECK(aList.size() == 1);
+    CHECK(aList[0] == "one");
+}
+
+TEST("Write to a file") {
+    BAIL_OUT("File system is read only.");
 }
