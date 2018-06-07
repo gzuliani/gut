@@ -46,7 +46,7 @@ public:
 };
 
 bool isOdd(int i) {
-	return i % 2;
+	return i % 2 == 1;
 }
 
 void fnThatNotThrows() {
@@ -373,6 +373,36 @@ int main() {
 
 	CHECK(NULL == cpi1);
 	//~ assert(lastFailure == "[error] NULL == cpi1 evaluates to 0 == 0012FF24");
+
+	// nullptr
+	CHECK(pi1 == nullptr);
+	//~ assert(lastFailure == "[error] pi1 == nullptr evaluates to 0012FF24 == <nullptr>");
+
+	CHECK(&i1 == nullptr);
+	//~ assert(lastFailure == "[error] &i1 == nullptr evaluates to 0012FF24 == <nullptr>");
+
+	int* pnullptr = nullptr;
+
+	CHECK(pnullptr != NULL);
+	//~ assert(lastFailure == "[error] pnullptr != NULL evaluates to 00000000 != 00000000");
+
+	CHECK(pnullptr != 0);
+	//~ assert(lastFailure == "[error] pnullptr != 0 evaluates to 00000000 != 00000000");
+
+	CHECK(cpi1 == nullptr);
+	//~ assert(lastFailure == "[error] cpi1 == nullptr evaluates to 0012FF24 == <nullptr>");
+
+	CHECK(nullptr == &i1);
+	//~ assert(lastFailure == "[error] nullptr == &i1 evaluates to <nullptr> == 0012FF24");
+
+	CHECK(0 != pnullptr);
+	//~ assert(lastFailure == "[error] 0 != pnullptr evaluates to 00000000 != 00000000");
+
+	CHECK(NULL != pnullptr);
+	//~ assert(lastFailure == "[error] NULL != pnullptr evaluates to 00000000 != 00000000");
+
+	CHECK(nullptr == cpi1);
+	//~ assert(lastFailure == "[error] nullptr == cpi1 evaluates to <nullptr> == 0012FF24");
 
 	// objects
 	Object o1(1);

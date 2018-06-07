@@ -142,6 +142,10 @@ std::string toString(unsigned long long value) {
 	return intToString(value);
 }
 
+std::string toString(std::nullptr_t) {
+	return "<nullptr>";
+}
+
 template<typename T>
 class HasOperatorString {
 	typedef char yes[1];
@@ -400,8 +404,28 @@ bool compare(T* lhs, int rhs) {
 }
 
 template<Operator op, typename T>
+bool compare(T* lhs, long long rhs) {
+	return ExprFactory<T*, T*, op>::logAndEvaluate(lhs, reinterpret_cast<T*>(rhs));
+}
+
+template<Operator op, typename T>
 bool compare(int lhs, T* rhs) {
 	return ExprFactory<T*, T*, op>::logAndEvaluate(reinterpret_cast<T*>(lhs), rhs);
+}
+
+template<Operator op, typename T>
+bool compare(long long lhs, T* rhs) {
+	return ExprFactory<T*, T*, op>::logAndEvaluate(reinterpret_cast<T*>(lhs), rhs);
+}
+
+template<Operator op, typename T>
+bool compare(T* lhs, std::nullptr_t rhs) {
+	return ExprFactory<T*, std::nullptr_t, op>::logAndEvaluate(lhs, rhs);
+}
+
+template<Operator op, typename T>
+bool compare(std::nullptr_t lhs, T* rhs) {
+	return ExprFactory<std::nullptr_t, T*, op>::logAndEvaluate(lhs, rhs);
 }
 
 template<typename T>
