@@ -1,4 +1,6 @@
+#define GUT_CUSTOM_MAIN
 #include "gut.h"
+
 #include <cassert>
 #include <stdexcept>
 
