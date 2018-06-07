@@ -8,9 +8,13 @@
 #endif
 
 #ifdef GUT_HAS_CHRONO
-#include "timing-chrono.h"
+
+    #include "timing-chrono.h"
+
 #else
-#include "timing-custom.h"
+
+    #include "timing-custom.h"
+
 #endif
 
 #define GUT_DURATION(expr_) \

@@ -11,16 +11,21 @@ namespace color {
 struct ColorInConsole_ {};
 typedef StaticFlag<ColorInConsole_> ColorInConsole;
 
-#define GUT_ENABLE_COLORINCONSOLE gut::color::ColorInConsole colorInConsole_;
+#define GUT_ENABLE_COLORINCONSOLE \
+    gut::color::ColorInConsole colorInConsole_;
 
 } // namespace color
 
 } // namespace gut
 
 #ifdef _WIN32
-#include "windows/colors.h"
+
+    #include "windows/colors.h"
+
 #elif  __linux__
-#include "linux/colors.h"
+
+    #include "linux/colors.h"
+
 #endif
 
 #endif // GUT_COLORS_H

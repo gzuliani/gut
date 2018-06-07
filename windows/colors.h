@@ -2,6 +2,10 @@
 #define GUT_WINDOWS_COLORS_H
 
 #include <iostream>
+
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
 #include <windows.h>
 
 namespace gut {

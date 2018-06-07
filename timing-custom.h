@@ -30,9 +30,13 @@ Duration match_duration(const T& source, const Duration& /*target*/) {
 } // namespace gut
 
 #ifdef _WIN32
-#include "windows/timing-custom.h"
+
+    #include "windows/timing-custom.h"
+
 #elif  __linux__
-#include "linux/timing-custom.h"
+
+    #include "linux/timing-custom.h"
+
 #endif
 
 #endif // GUT_TIMINGCUSTOM_H
