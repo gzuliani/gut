@@ -13,7 +13,21 @@
 #pragma GCC system_header
 #endif
 
+// Visual Studio 2012 support
+#if defined _MSC_VER && (_MSC_VER <= 1700)
+
+    #define GUT_DELETE
+    #define GUT_EXPLICIT
+
+#else
+
+    #define GUT_DELETE = delete
+    #define GUT_EXPLICIT explicit
+
+#endif
+
 #include "colors.h"
+#include "debugger.h"
 #include "timing.h"
 
 #define GUT_INT_BASE Dec
@@ -184,7 +198,7 @@ struct StringRepr<T, false> {
 struct Expression {
     static std::string last;
     virtual ~Expression() {}
-    Expression& operator=(const Expression&) = delete;
+    Expression& operator=(const Expression&) GUT_DELETE;
     virtual bool evaluate() const = 0;
     virtual std::string toString() const = 0;
     bool logAndEvaluate() {
@@ -494,7 +508,7 @@ public:
     operator bool() const {
         return UnaryExpression<T>(lhs_).logAndEvaluate();
     }
-    Term& operator=(const Term&) = delete;
+    Term& operator=(const Term&) GUT_DELETE;
     template<class U>
     UNEXPECTED_ASSIGNMENT operator=(const U&) const;
     OPERATION_NOT_SUPPORTED operator&&(const Term<T>&) const;
@@ -519,7 +533,7 @@ public:
     Boolean(const Boolean& other) : value_(other.value_) {
         repr_ << other.repr_.rdbuf();
     }
-    explicit operator bool() const { return value_; }
+    GUT_EXPLICIT operator bool() const { return value_; }
     operator std::string() const {
         if (!repr_.rdbuf()->in_avail())
             repr_ << std::boolalpha << value_;
@@ -1010,7 +1024,7 @@ class DefaultReport {
 public:
     DefaultReport(std::ostream& os = std::cout)
      : os_(os), testAlreadyFailed_(false) {}
-    DefaultReport& operator=(const DefaultReport&) = delete;
+    DefaultReport& operator=(const DefaultReport&) GUT_DELETE;
     void start() { os_ << "Test suite started..." << std::endl; }
     void end(
         int tests,
@@ -1109,25 +1123,27 @@ Listener theListener = Listener(DefaultReport());
 
 #ifdef _MSC_VER
 
-#define GUT_END \
-__pragma(pack(push)) \
-__pragma(warning(disable:4127)) \
-    } while (0) \
-__pragma(pack(pop))
+    #define GUT_END \
+    __pragma(pack(push)) \
+    __pragma(warning(disable:4127)) \
+        } while (0) \
+    __pragma(pack(pop))
 
 #else
 
-#define GUT_END \
-    } while (0)
+    #define GUT_END \
+        } while (0)
 
 #endif
 
 #define CHECK(expr_) \
     GUT_BEGIN \
-        if (!(gut::Capture()->*expr_)) \
+        if (!(gut::Capture()->*expr_)) { \
+            GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::CheckFailure( \
                     #expr_, gut::Expression::last, __FILE__, __LINE__)); \
+        } \
     GUT_END
 
 #define THROWS_(expr_, exception_, prefix_, abort_) \
@@ -1135,16 +1151,19 @@ __pragma(pack(pop))
         bool catched_ = false; \
         try { \
             (void)(expr_); \
+            GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::prefix_ ## NoThrowFailure( \
                     #expr_, __FILE__, __LINE__)); \
         } catch(const exception_&) { \
             catched_ = true; \
         } catch(const std::exception& e_) { \
+            GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::prefix_ ## WrongTypedExceptionFailure( \
                     #expr_, e_, __FILE__, __LINE__)); \
         } catch(...) { \
+            GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::prefix_ ## WrongExceptionFailure( \
                     #expr_, __FILE__, __LINE__)); \
@@ -1162,6 +1181,7 @@ __pragma(pack(pop))
 #define REQUIRE(expr_) \
     GUT_BEGIN \
         if (!(gut::Capture()->*expr_)) { \
+            GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::RequireFailure( \
                     #expr_, gut::Expression::last, __FILE__, __LINE__)); \
@@ -1173,6 +1193,7 @@ __pragma(pack(pop))
     GUT_BEGIN \
         try { \
             (void)(expr_); \
+            GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::NoThrowFailure( \
                     #expr_, __FILE__, __LINE__)); \
@@ -1189,6 +1210,7 @@ __pragma(pack(pop))
             threw_ = true; \
         } \
         if (!threw_) { \
+            GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::FatalNoThrowFailure( \
                     #expr_, __FILE__, __LINE__)); \
@@ -1201,21 +1223,25 @@ __pragma(pack(pop))
         bool catched_ = false; \
         try { \
             (void)(expr_); \
+            GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::prefix_ ## NoThrowFailure( \
                     #expr_, __FILE__, __LINE__)); \
         } catch(const exception_& e_) { \
-            if (strcmp(e_.what(), static_cast<const char*>(what_)) != 0) \
+            if (strcmp(e_.what(), static_cast<const char*>(what_)) != 0) { \
+                GUT_DEBUG_BREAK \
                 gut::theListener.failure( \
                     gut::prefix_ ## WrongExceptionMessageFailure( \
                         #expr_, e_.what(), what_, __FILE__, __LINE__)); \
-            else \
+            } else \
                 catched_ = true; \
         } catch(const std::exception& e_) { \
+            GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::prefix_ ## WrongTypedExceptionFailure( \
                     #expr_, e_, __FILE__, __LINE__)); \
         } catch(...) { \
+            GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::prefix_ ## WrongExceptionFailure( \
                     #expr_, __FILE__, __LINE__)); \
@@ -1235,10 +1261,12 @@ __pragma(pack(pop))
         try { \
             (void)(expr_); \
         } catch(const std::exception& e_) { \
+            GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::UnexpectedExceptionFailure( \
                     e_, __FILE__, __LINE__)); \
         } catch(...) { \
+            GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::UnknownExceptionFailure( \
                     __FILE__, __LINE__)); \
@@ -1252,10 +1280,12 @@ __pragma(pack(pop))
             (void)(expr_); \
             threw_ = false; \
         } catch(const std::exception& e_) { \
+            GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::FatalUnexpectedExceptionFailure( \
                     e_, __FILE__, __LINE__)); \
         } catch(...) { \
+            GUT_DEBUG_BREAK \
             gut::theListener.failure( \
                 gut::FatalUnknownExceptionFailure( \
                     __FILE__, __LINE__)); \
@@ -1275,10 +1305,12 @@ int runTests_() {
             break;
         } catch(const gut::AbortTest&) {
         } catch(const std::exception& e_) {
+            GUT_DEBUG_BREAK
             gut::theListener.failure(
                 gut::FatalUnexpectedExceptionFailure(
                     e_, __FILE__, __LINE__));
         } catch(...) {
+            GUT_DEBUG_BREAK
             gut::theListener.failure(
                 gut::FatalUnknownExceptionFailure(
                     __FILE__, __LINE__));
@@ -1323,6 +1355,7 @@ int main() {
 
 #define FAIL(message_) \
     GUT_BEGIN \
+		GUT_DEBUG_BREAK \
         gut::theListener.failure( \
             gut::UserFailure(message_, __FILE__, __LINE__)); \
     GUT_END

@@ -8,6 +8,9 @@ int f(int, int) {
 }
 
 TEST("duration detection") {
+
+#ifdef GUT_HAS_CHRONO
+
     // define a threshold in s
     auto limit_s = std::chrono::duration<double>(.1);
 
@@ -32,4 +35,20 @@ TEST("duration detection") {
 
     // this check won't be executed
     CHECK(1 == 2);
+
+#else // GUT_HAS_CHRONO - <chrono> not available
+
+    // thresholds are in s
+    LASTS_AT_MOST(f(1, 2),  0);
+    LASTS_AT_MOST(f(1, 2),  1);
+    LASTS_AT_MOST(f(1, 2), .1);
+
+    // causes the test to end
+    REQUIRE_LASTS_AT_MOST(f(1, 2), .1);
+
+    // this check won't be executed
+    CHECK(1 == 2);
+
+#endif // GUT_HAS_CHRONO
+
 }
