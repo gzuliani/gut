@@ -20,11 +20,11 @@ TEST {
 		InputTextFile file("file1.txt");
 
 		for (size_t i = 0; i < 6; i++) {
-			CHECK(file.good());
+			CHECK(file);
 			CHECK(file.readLine() == content[i]);
 		}
 
-		CHECK(!file.good());
+		CHECK(!file);
 		THROWS(file.readLine(), std::runtime_error);
 	}
 
@@ -49,10 +49,10 @@ TEST {
 			CHECK(*line == content[i + 1]);
 		}
 
-		CHECK(file.good());
+		CHECK(file);
 		CHECK(*line == content[4]);
 
-		CHECK(file.good());
+		CHECK(file);
 		CHECK(file.readLine() == content[5]);
 
 		CHECK(!file);
@@ -63,7 +63,7 @@ TEST {
 	{
 		InputTextFile file("file_.txt");
 
-		CHECK(!file.good());
+		CHECK(!file);
 		THROWS(file.readLine(), std::runtime_error);
 	}
 }

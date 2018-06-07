@@ -1,4 +1,0 @@
-Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-Morbi imperdiet odio nec felis interdum malesuada.
-Donec laoreet lectus et nibh scelerisque rhoncus in id lacus.
-Proin augue dolor, gravida vitae consequat vitae, ullamcorper vitae tortor.
