@@ -1174,7 +1174,7 @@ Listener theListener = Listener(DefaultReport());
     GUT_END
 
 #define THROWS__(...) \
-    THROWS_(__VA_ARGS__)
+    GUT_EXPAND(THROWS_(__VA_ARGS__))
 
 #define THROWS(...) \
     THROWS__( \
@@ -1258,7 +1258,7 @@ Listener theListener = Listener(DefaultReport());
     GUT_END
 
 #define THROWS_WITH_MESSAGE__(...) \
-    THROWS_WITH_MESSAGE_(__VA_ARGS__)
+    GUT_EXPAND(THROWS_WITH_MESSAGE_(__VA_ARGS__))
 
 #define THROWS_WITH_MESSAGE(...) \
     THROWS_WITH_MESSAGE__( \

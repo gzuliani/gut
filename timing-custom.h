@@ -33,7 +33,7 @@ Duration match_duration(const T& source, const Duration& /*target*/) {
 
     #include "windows/timing-custom.h"
 
-#elif  __linux__
+#elif __linux__
 
     #include "linux/timing-custom.h"
 
