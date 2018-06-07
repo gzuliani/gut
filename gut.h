@@ -21,6 +21,10 @@
 #include <time.h>
 #endif
 
+#if defined __GNUC__ && (__GNUC__ < 4 || (__GNUC__ == 4 && __GNUC_MINOR__ < 6))
+#pragma GCC system_header
+#endif
+
 namespace gut {
 
 // static flag, initially reset; declare an instance to set it
@@ -584,7 +588,14 @@ std::ostream& operator<<(std::ostream& os, const NonStreamableTerm&) {
 template <typename T>
 std::string toString(const T& value) {
     std::ostringstream os;
+#if defined __GNUC__ && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __GNUC__ > 4)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsign-promo"
+#endif
     os << std::boolalpha << value;
+#if defined __GNUC__ && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __GNUC__ > 4)
+#pragma GCC diagnostic pop
+#endif
     return os.str();
 }
 
