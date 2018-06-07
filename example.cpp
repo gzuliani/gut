@@ -25,6 +25,8 @@ public:
     }
 };
 
+GUT_ENABLE_COLORINCONSOLE
+
 TEST("Initial list is empty") {
     RecentlyUsedList anEmptyList;
 

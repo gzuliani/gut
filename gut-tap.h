@@ -33,9 +33,8 @@ public:
     }
     void endTest(bool failed, double /*duration*/) {
         std::ostringstream oss;
-        if (failed) {
+        if (failed)
             oss << "not ";
-        }
         oss << "ok " << testCount_ << " - " << testName_;
         for (const auto& entry : log_) {
             oss << "\n# " << entry;
