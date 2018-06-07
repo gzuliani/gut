@@ -101,7 +101,7 @@ std::string toString(const std::string& value) {
 }
 
 std::string toString(const char* value) {
-    return std::string("\"") + value + "\"";
+    return value ? std::string("\"") + value + "\"" : "<nullptr>";
 }
 
 std::string toString(char value) {
