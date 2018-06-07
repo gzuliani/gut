@@ -60,7 +60,7 @@ int fnThatThrowsAnInt() {
   throw 42;
 }
 
-class TestReport : public gut::Report {
+class TestReport {
 	std::string& failure_;
 	std::string& eval_;
 	std::string& info_;
@@ -78,19 +78,16 @@ public:
 	, info_(info)
 	, warn_(warn) {
 	}
-protected:
-	virtual void onFailure(const gut::Notice& failure) {
-		failure_ = failure.what();
-	}
-	virtual void onEval(const gut::Notice& eval) {
-		eval_ = eval.what();
-	}
-	virtual void onInfo(const gut::Notice& info) {
-		info_ = info.what();
-	}
-	virtual void onWarn(const gut::Notice& warn) {
-		warn_ = warn.what();
-	}
+	void onStart() { }
+	void onEnd() { }
+	void onStartTest(const std::string& /*name*/) { }
+	void onEndTest() { }
+	void onFailure(const gut::Notice& failure) { failure_ = failure.what(); }
+	virtual void onEval(const gut::Notice& eval) { eval_ = eval.what(); }
+	virtual void onInfo(const gut::Notice& info) { info_ = info.what(); }
+	virtual void onWarn(const gut::Notice& warn) { warn_ = warn.what(); }
+	void onQuit(const std::string& /*reason*/) { }
+	int failedTestCount() { return -1; }
 };
 
 class ConvertibleToBool {
@@ -125,9 +122,7 @@ int main() {
 	std::string lastEval;
 	std::string lastInfo;
 	std::string lastWarn;
-	gut::Report::set(
-		std::make_shared<TestReport>(
-			lastFailure, lastEval, lastInfo, lastWarn));
+	gut::theReport::set(TestReport(lastFailure, lastEval, lastInfo, lastWarn));
 
 	int i1 = 1;
 	int i2 = 2;
@@ -537,9 +532,9 @@ int main() {
 
 		CHECK(2 == 1); // won't be executed
 	} catch(const std::exception& e) {
-		gut::Report::failure(gut::UnexpectedExceptionFailure(e, __FILE__, __LINE__));
+		gut::theReport::failure(gut::UnexpectedExceptionFailure(e, __FILE__, __LINE__));
 	} catch(...) {
-		gut::Report::failure(gut::UnknownExceptionFailure(__FILE__, __LINE__));
+		gut::theReport::failure(gut::UnknownExceptionFailure(__FILE__, __LINE__));
 	}
 
 	assert(lastFailure == "[fatal] unexpected exception \"a runtime error\" caught");
