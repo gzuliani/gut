@@ -140,6 +140,55 @@ std::string toString(unsigned long long value) {
 	return intToString(value);
 }
 
+template<typename T>
+class HasOperatorString {
+	typedef char yes[1];
+	typedef char no [2];
+
+	struct Base {
+		operator std::string() const;
+	};
+
+	struct Derived : T, Base { };
+
+	template<typename U, U u>
+	struct Check { };
+
+	template<typename U>
+	static no& check_(Check<std::string (Base::*)() const, &U::operator std::string>*);
+
+	template<typename U>
+	static yes& check_(...);
+
+public:
+	static const bool value = sizeof(yes) == sizeof(check_<Derived>(0));
+};
+
+template<>
+class HasOperatorString<bool> {
+public:
+	static const bool value = false;
+};
+
+template<typename T, bool HasOperatorString = true>
+struct StringRepr {
+	std::string repr;
+	StringRepr(const T& item) : repr(static_cast<std::string>(item)) {
+	}
+	std::string str() const {
+		return repr;
+	}
+};
+
+template<typename T>
+struct StringRepr<T, false> {
+	StringRepr(const T& /*item*/) {
+	}
+	static std::string str() {
+		return "<?>";
+	}
+};
+
 struct Expression {
 	static std::string last;
 	virtual ~Expression() { }
@@ -147,7 +196,10 @@ struct Expression {
 	virtual std::string toString() const = 0;
 	template <typename T>
 	static bool logAndEvaluate(const T& value) {
-		Expression::last = gut::toString(value);
+		if (HasOperatorString<T>::value)
+			Expression::last = StringRepr<T, HasOperatorString<T>::value>(value).str();
+		else
+			Expression::last = gut::toString(static_cast<bool>(value));
 		return static_cast<bool>(value);
 	}
 	bool logAndEvaluate() {
@@ -407,14 +459,10 @@ public:
 	operator bool() const {
 		return value_;
 	}
-	std::string str() const {
+	operator std::string() const {
 		return repr_;
 	}
 };
-
-std::ostream& operator<<(std::ostream& os, const Boolean& boolean) {
-	return os << boolean.str();
-}
 
 class TextFlow {
 	std::ostringstream oss_;
@@ -453,50 +501,67 @@ struct Location {
 	}
 };
 
+struct AbortTest { };
+
 struct Failure {
 protected:
 	std::ostringstream description;
 public:
 	Location location;
-	Failure(const char* file, int line) : location(file, line) {
+	Failure(const std::string& level, const char* file, int line) : location(file, line) {
+		description << "[" << level << "] ";
 	}
 	std::string what() const {
 		return description.str();
 	}
 };
 
-struct CheckFailure : public Failure {
-	CheckFailure(const char* expression, const std::string& expansion, const char* file, int line) : Failure(file, line) {
+struct Error : public Failure {
+  Error(const char* file, int line) : Failure("error", file, line) { }
+};
+
+struct Fatal : public Failure {
+  Fatal(const char* file, int line) : Failure("fatal", file, line) { }
+};
+
+struct CheckFailure : public Error {
+	CheckFailure(const char* expression, const std::string& expansion, const char* file, int line) : Error(file, line) {
 		description << expression << " evaluates to " << expansion;
 	}
 };
 
-struct NoThrowFailure : public Failure {
-	NoThrowFailure(const char* expression, const char* file, int line) : Failure(file, line) {
+struct RequireFailure : public Fatal {
+	RequireFailure(const char* expression, const std::string& expansion, const char* file, int line) : Fatal(file, line) {
+		description << expression << " evaluates to " << expansion;
+	}
+};
+
+struct NoThrowFailure : public Error {
+	NoThrowFailure(const char* expression, const char* file, int line) : Error(file, line) {
 		description << expression << " did not throw";
 	}
 };
 
-struct WrongTypedExceptionFailure : public Failure {
-	WrongTypedExceptionFailure(const char* expression, const std::exception& exception, const char* file, int line) : Failure(file, line) {
+struct WrongTypedExceptionFailure : public Error {
+	WrongTypedExceptionFailure(const char* expression, const std::exception& exception, const char* file, int line) : Error(file, line) {
 		description << expression << " threw an unexpected exception \"" << exception.what() << "\"";
 	}
 };
 
-struct WrongExceptionFailure : public Failure {
-	WrongExceptionFailure(const char* expression, const char* file, int line) : Failure(file, line) {
+struct WrongExceptionFailure : public Error {
+	WrongExceptionFailure(const char* expression, const char* file, int line) : Error(file, line) {
 		description << expression << " threw an unknown exception";
 	}
 };
 
-struct UnexpectedExceptionFailure : public Failure {
-	UnexpectedExceptionFailure(const std::exception& exception, const char* file, int line) : Failure(file, line) {
+struct UnexpectedExceptionFailure : public Fatal {
+	UnexpectedExceptionFailure(const std::exception& exception, const char* file, int line) : Fatal(file, line) {
 		description << "unexpected exception \"" << exception.what() << "\" caught";
 	}
 };
 
-struct UnknownExceptionFailure : public Failure {
-	UnknownExceptionFailure(const char* file, int line) : Failure(file, line) {
+struct UnknownExceptionFailure : public Fatal {
+	UnknownExceptionFailure(const char* file, int line) : Fatal(file, line) {
 		description << "unknown exception caught";
 	}
 };
@@ -590,6 +655,12 @@ protected:
 		} \
 	} while (0)
 
+#define REQUIRE(expr_) \
+		if (!(gut::Capture()->*expr_)) { \
+			gut::Report::failure(gut::RequireFailure(#expr_, gut::Expression::last, __FILE__, __LINE__)); \
+			throw gut::AbortTest();\
+		}
+
 #define TEST \
 	void runTest(); \
 	int main() { \
@@ -598,6 +669,7 @@ protected:
 		gut::Report::start(); \
 		try { \
 			runTest(); \
+		} catch(const gut::AbortTest&) { \
 		} catch(const std::exception& e) { \
 			gut::Report::failure(gut::UnexpectedExceptionFailure(e, __FILE__, __LINE__)); \
 		} catch(...) { \
