@@ -636,5 +636,72 @@ int main() {
     REQUIRE_THROWS_WITH_MESSAGE(Point{-1, 2}, std::runtime_error, "point out of domain");
     REQUIRE_THROWS_NOTHING(Point{1, 2});
 
+    // highlighting the first mismatched character in strings
+    GUT_ENABLE_HIGHLIGHTFIRSTDIFF
+
+    const std::string s3("abcdefghijklmnopqrstuvwxyz");
+    const std::string s4("*bcdefghijklXnopqrstuvwxyz");
+
+    CHECK(s3 == s4);
+    assert(lastFailure ==
+        "[error] s3 == s4 evaluates to \"abcdefghijklmnopqrstuvwxyz\" == \"*bcdefghijklXnopqrstuvwxyz\"\n"
+        "first difference found at index 0:\n"
+        "abcdefghijklmnopqrstuvwxyz\n"
+        "*bcdefghijklXnopqrstuvwxyz\n"
+        "^\n");
+
+    CHECK(s3 == "abc*efghijklmnopqrstuvwxyz");
+    assert(lastFailure ==
+        "[error] s3 == \"abc*efghijklmnopqrstuvwxyz\" evaluates to \"abcdefghijklmnopqrstuvwxyz\" == \"abc*efghijklmnopqrstuvwxyz\"\n"
+        "first difference found at index 3:\n"
+        "abcdefghijklmnopqrstuvwxyz\n"
+        "abc*efghijklmnopqrstuvwxyz\n"
+        "---^\n");
+
+    CHECK("*bcdefghijklmnopqrstuvw*yz" == s4);
+    assert(lastFailure ==
+        "[error] \"*bcdefghijklmnopqrstuvw*yz\" == s4 evaluates to \"*bcdefghijklmnopqrstuvw*yz\" == \"*bcdefghijklXnopqrstuvwxyz\"\n"
+        "first difference found at index 12:\n"
+        "*bcdefghijklmnopqrstuvw*yz\n"
+        "*bcdefghijklXnopqrstuvwxyz\n"
+        "------------^\n");
+
+    CHECK("abcdefghijklmnopqrstuvwxy*" == "abcdefghijklmnopqrstuvwxyz");
+    assert(lastFailure ==
+        "[error] \"abcdefghijklmnopqrstuvwxy*\" == \"abcdefghijklmnopqrstuvwxyz\" evaluates to \"abcdefghijklmnopqrstuvwxy*\" == \"abcdefghijklmnopqrstuvwxyz\"\n"
+        "first difference found at index 25:\n"
+        "bcdefghijklmnopqrstuvwxy*\n"
+        "bcdefghijklmnopqrstuvwxyz\n"
+        "------------------------^\n");
+
+    CHECK(s3 == std::string());
+    assert(lastFailure ==
+        "[error] s3 == std::string() evaluates to \"abcdefghijklmnopqrstuvwxyz\" == \"\"\n"
+        "first difference found at index 0:\n"
+        "abcdefghijklmnopqrstuvwxyz\n"
+        "\n"
+        "^\n");
+
+    CHECK(std::string() == s4);
+    assert(lastFailure ==
+        "[error] std::string() == s4 evaluates to \"\" == \"*bcdefghijklXnopqrstuvwxyz\"\n"
+        "first difference found at index 0:\n"
+        "\n"
+        "*bcdefghijklXnopqrstuvwxyz\n"
+        "^\n");
+
+    // non-string types don't get highlighting
+    CHECK(i1 == i2);
+    assert(lastFailure == "[error] i1 == i2 evaluates to 1 == 2");
+
+    CHECK(b1 == b2);
+    assert(lastFailure == "[error] b1 == b2 evaluates to true == false");
+
+    CHECK(c1 == uc2);
+    assert(lastFailure == "[error] c1 == uc2 evaluates to 'o' 0x6f == 0x05");
+
+    CHECK(o1 == o2);
+    assert(lastFailure == "[error] o1 == o2 evaluates to Object#1 == Object#2");
+
     return 0;
 }
