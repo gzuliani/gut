@@ -43,6 +43,7 @@
 
 namespace gut {
 
+// integral value conversion to string
 std::string asDec(long long value, const char* suffix) {
     std::ostringstream os;
     os << value << suffix;
@@ -90,6 +91,13 @@ std::string asHex(const T& value) {
 }
 
 template<class T>
+std::string intToString(const T& value) {
+    return GUT_INT_TO_STRING(value);
+}
+
+// toRawString converts a value into a string suitable for value comparison
+// it is used by the `highlight` module to emphasise differences in values
+template<class T>
 std::string toRawString(const T&) {
     return "";
 }
@@ -102,40 +110,8 @@ std::string toRawString(const char* value) {
     return value;
 }
 
-std::string highlightFirstDiff(const std::string& lhs, const std::string& rhs)
-{
-    static const int prefixLength = 24;
-    static const int suffixLength = 48;
-    const auto diff = std::mismatch(
-        lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
-    if (diff.first == lhs.end() && diff.second == rhs.end())
-        return "";
-    const int diffPos = (diff.first != lhs.end())
-        ? diff.first - lhs.begin()
-        : diff.second - rhs.begin();
-    const auto fragmentStartPos = std::max(0, diffPos - prefixLength);
-    const auto markerPos = std::min(diffPos, prefixLength);
-    const auto fragmentLength = markerPos + suffixLength;
-
-    std::ostringstream os;
-    os
-        << "first difference found at index "
-        << diffPos
-        << ":\n"
-        << lhs.substr(fragmentStartPos, fragmentLength)
-        << "\n"
-        << rhs.substr(fragmentStartPos, fragmentLength)
-        << "\n"
-        << std::string(markerPos, '-')
-        << "^";
-    return os.str();
-}
-
-template<class T>
-std::string intToString(const T& value) {
-    return GUT_INT_TO_STRING(value);
-}
-
+// toString converts a value to its textual representation
+// may contain hints on the value type (i.e. "string", 'char', 12ul, ...)
 template<class T>
 std::string toString(const T& value);
 
@@ -300,14 +276,10 @@ struct Equal : public BinaryExpression<T, U> {
     virtual std::string getOpName() const { return "=="; }
     virtual std::string toString() const {
         using gut::toString;
-        std::string firstDiffHighlight;
-        if (highlight::HighlightFirstDiff::enabled()) {
-            firstDiffHighlight = highlightFirstDiff(
-                toRawString(this->lhs_), toRawString(this->rhs_));
-            if (!firstDiffHighlight.empty())
-                firstDiffHighlight = "\n" + firstDiffHighlight + "\n";
-        }
-        return BinaryExpression<T, U>::toString() + firstDiffHighlight;
+        return BinaryExpression<T, U>::toString()
+            + highlight::firstDiffInStrings(
+                toRawString(this->lhs_),
+                toRawString(this->rhs_));
     }
 };
 

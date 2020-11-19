@@ -7,7 +7,7 @@ namespace gut {
 
 namespace color {
 
-// enable/disable colors in console
+// enable colors in console
 struct ColorInConsole_ {};
 typedef StaticFlag<ColorInConsole_> ColorInConsole;
 

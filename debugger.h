@@ -7,7 +7,7 @@ namespace gut {
 
 namespace debugger {
 
-// enable/disable breakpoints
+// enable breakpoints
 struct BreakInDebugger_ {};
 typedef StaticFlag<BreakInDebugger_> BreakInDebugger;
 

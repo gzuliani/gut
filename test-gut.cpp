@@ -74,7 +74,7 @@ struct Point {
 };
 
 std::ostream& operator<<(std::ostream& os, const Point& pt) {
-	return os << "(" << pt.x_ << ", " << pt.y_ << ")"; 
+    return os << "(" << pt.x_ << ", " << pt.y_ << ")";
 }
 
 class TestReport {
@@ -85,6 +85,7 @@ class TestReport {
 public:
     TestReport(std::string& failure, std::string& info)
     : failure_(failure), info_(info) {}
+    TestReport(const TestReport&) = default;
     void start() {}
     void end(
         int /*tests*/,
@@ -636,8 +637,8 @@ int main() {
     REQUIRE_THROWS_WITH_MESSAGE(Point{-1, 2}, std::runtime_error, "point out of domain");
     REQUIRE_THROWS_NOTHING(Point{1, 2});
 
-    // highlighting the first mismatched character in strings
-    GUT_ENABLE_HIGHLIGHTFIRSTDIFF
+    // highlighting the first mismatching characters in strings
+    GUT_ENABLE_HIGHLIGHTFIRSTDIFFINSTRINGS
 
     const std::string s3("abcdefghijklmnopqrstuvwxyz");
     const std::string s4("*bcdefghijklXnopqrstuvwxyz");
@@ -670,9 +671,9 @@ int main() {
     assert(lastFailure ==
         "[error] \"abcdefghijklmnopqrstuvwxy*\" == \"abcdefghijklmnopqrstuvwxyz\" evaluates to \"abcdefghijklmnopqrstuvwxy*\" == \"abcdefghijklmnopqrstuvwxyz\"\n"
         "first difference found at index 25:\n"
-        "bcdefghijklmnopqrstuvwxy*\n"
-        "bcdefghijklmnopqrstuvwxyz\n"
-        "------------------------^\n");
+        "abcdefghijklmnopqrstuvwxy*\n"
+        "abcdefghijklmnopqrstuvwxyz\n"
+        "-------------------------^\n");
 
     CHECK(s3 == std::string());
     assert(lastFailure ==
@@ -689,6 +690,14 @@ int main() {
         "\n"
         "*bcdefghijklXnopqrstuvwxyz\n"
         "^\n");
+
+    CHECK("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" == "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTU*WXYZ");
+    assert(lastFailure ==
+        "[error] \"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\" == \"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTU*WXYZ\" evaluates to \"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\" == \"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTU*WXYZ\"\n"
+        "first difference found at index 47:\n"
+        "hijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\n"
+        "hijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTU*WXYZ\n"
+        "----------------------------------------^\n");
 
     // non-string types don't get highlighting
     CHECK(i1 == i2);
