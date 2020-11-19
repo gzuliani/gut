@@ -107,7 +107,7 @@ std::string toRawString(const std::string& value) {
 }
 
 std::string toRawString(const char* value) {
-    return value;
+    return value ? value : "";
 }
 
 // toString converts a value to its textual representation
